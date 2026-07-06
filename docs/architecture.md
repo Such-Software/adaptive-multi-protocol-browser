@@ -19,10 +19,12 @@ browser engine until those contracts are stable.
 ## Main Components
 
 - `ampbrowser.routing`: deterministic URL-to-transport rules.
+- `ampbrowser.adapters`: transport ownership, setup, inspection, and health contracts.
 - `ampbrowser.transports`: local readiness checks for Tor, I2P, Reticulum, and Gemini.
 - `ampbrowser.plan`: dry-run action planner for browser launches.
 - `ampbrowser.launch`: side-effect-free launch specs and first-use consent state.
 - `ampbrowser.platforms`: platform capability matrix for desktop, Android, and iOS.
+- `ampbrowser.candidates`: evaluated transport candidates before active adapter support.
 - `ampbrowser.docsgen`: generated public documentation from code-owned metadata.
 
 ## Browser Strategy

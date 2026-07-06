@@ -36,3 +36,4 @@ leases, tunnels, and daemon logs in that tree are local state and must not be co
 - Reticulum: route contract exists; adapter and readiness model are planned.
 
 Generated transport metadata lives in [generated transports](generated/transports.md).
+Adapter ownership and setup contracts live in [generated adapters](generated/adapters.md).

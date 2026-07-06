@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .adapters import adapter_for
 from .config import AppConfig, default_config
 from .plan import BrowsePlan, plan_url
 
@@ -88,33 +89,19 @@ def _proxy_for(browse_plan: BrowsePlan) -> str:
 def _setup_steps(browse_plan: BrowsePlan) -> tuple[str, ...]:
     if not browse_plan.status:
         return ()
+    adapter = adapter_for(browse_plan.route.transport)
+    if not adapter:
+        return ()
 
     steps: list[str] = []
     platform = browse_plan.platform_capability.platform
-    if not browse_plan.status.installed:
-        if platform == "android":
-            steps.append(f"install or enable Android {browse_plan.route.transport} provider")
-        elif platform == "ios":
-            steps.append(f"enable foreground iOS {browse_plan.route.transport} session")
-        else:
-            steps.append(f"install {browse_plan.route.transport}")
-    if platform == "android":
-        steps.append("start visible Android foreground service")
-        steps.extend(
-            [
-                f"start managed Android {browse_plan.route.transport} transport",
-                f"wait for {browse_plan.status.endpoint}",
-            ]
-        )
+    if platform == "android" and not browse_plan.status.installed:
+        steps.append(f"install or enable Android {browse_plan.route.transport} provider")
+        steps.extend(adapter.setup_steps(installed=True, platform=platform))
         return tuple(steps)
-    elif platform == "ios":
-        steps.append("start foreground-only iOS session")
-        steps.extend(
-            [
-                f"start foreground-only iOS {browse_plan.route.transport} transport",
-                f"wait for {browse_plan.status.endpoint}",
-            ]
-        )
+    if platform == "ios" and not browse_plan.status.installed:
+        steps.append(f"enable foreground iOS {browse_plan.route.transport} session")
+        steps.extend(adapter.setup_steps(installed=True, platform=platform))
         return tuple(steps)
-    steps.extend([f"start managed {browse_plan.route.transport}", f"wait for {browse_plan.status.endpoint}"])
+    steps.extend(adapter.setup_steps(installed=browse_plan.status.installed, platform=platform))
     return tuple(steps)

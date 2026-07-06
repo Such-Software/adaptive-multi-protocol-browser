@@ -15,6 +15,8 @@ class DocsGenTest(unittest.TestCase):
 
             self.assertEqual(
                 {
+                    Path("docs/generated/adapters.md"),
+                    Path("docs/generated/candidate-transports.md"),
                     Path("docs/generated/platform-capabilities.md"),
                     Path("docs/generated/route-rules.md"),
                     Path("docs/generated/transports.md"),

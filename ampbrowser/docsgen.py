@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .adapters import ADAPTERS
+from .candidates import CANDIDATE_TRANSPORTS
 from .metadata import ROUTE_RULES, TRANSPORT_DEFINITIONS
 from .platforms import PLATFORM_CAPABILITIES
 
@@ -13,6 +15,8 @@ def generate_docs(root: Path, *, check: bool = False) -> list[Path]:
     docs = {
         GENERATED_DIR / "route-rules.md": _route_rules_doc(),
         GENERATED_DIR / "transports.md": _transports_doc(),
+        GENERATED_DIR / "adapters.md": _adapters_doc(),
+        GENERATED_DIR / "candidate-transports.md": _candidate_transports_doc(),
         GENERATED_DIR / "platform-capabilities.md": _platform_capabilities_doc(),
     }
     changed: list[Path] = []
@@ -72,3 +76,31 @@ def _platform_capabilities_doc() -> str:
             f"`{capability.adopt}` | `{capability.manage}` | `{capability.install}` | {capability.note} |"
         )
     return _header("Generated Platform Capabilities") + "\n".join(rows) + "\n"
+
+
+def _adapters_doc() -> str:
+    rows = [
+        "| Adapter | Endpoint | Adopt Check | Install Strategy | Start Strategy | Stop Policy | Note |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    for adapter in ADAPTERS.values():
+        rows.append(
+            f"| `{adapter.name}` | `{adapter.endpoint}` | {adapter.adopt_check} | "
+            f"{adapter.install_strategy} | {adapter.start_strategy} | {adapter.stop_policy} | {adapter.note} |"
+        )
+    return _header("Generated Transport Adapters") + "\n".join(rows) + "\n"
+
+
+def _candidate_transports_doc() -> str:
+    rows = [
+        "| Candidate | Role | Status | Routes | Browser Fit | Publisher Fit | Mobile Fit | Source | Note |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    for candidate in CANDIDATE_TRANSPORTS:
+        routes = ", ".join(f"`{route}`" for route in candidate.route_examples)
+        rows.append(
+            f"| `{candidate.name}` | {candidate.role} | `{candidate.status}` | {routes} | "
+            f"{candidate.browser_fit} | {candidate.publisher_fit} | {candidate.mobile_fit} | "
+            f"[source]({candidate.source}) | {candidate.note} |"
+        )
+    return _header("Generated Candidate Transports") + "\n".join(rows) + "\n"

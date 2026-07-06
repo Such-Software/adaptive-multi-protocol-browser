@@ -46,6 +46,7 @@ python3 -m unittest discover -s tests
 ## Documentation
 
 - [Architecture](docs/architecture.md)
+- [Candidate transports](docs/candidate-transports.md)
 - [Configuration](docs/configuration.md)
 - [Mobile browser](docs/mobile-browser.md)
 - [Open flow](docs/open-flow.md)

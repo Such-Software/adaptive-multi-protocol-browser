@@ -33,7 +33,10 @@ class PrepareOpenTest(unittest.TestCase):
 
         self.assertEqual("consent-required", plan.status)
         self.assertFalse(plan.consent_granted)
-        self.assertEqual(("install i2p", "start managed i2p", "wait for http://127.0.0.1:4444"), plan.setup_steps)
+        self.assertEqual(
+            ("install I2P provider", "start managed I2P router", "wait for http://127.0.0.1:4444"),
+            plan.setup_steps,
+        )
         self.assertIn("install and start", plan.message)
 
     def test_yes_approves_setup_without_executing_it(self) -> None:
@@ -53,7 +56,7 @@ class PrepareOpenTest(unittest.TestCase):
         self.assertEqual("setup-approved", plan.status)
         self.assertTrue(plan.dry_run)
         self.assertTrue(plan.consent_granted)
-        self.assertEqual(("start managed tor", "wait for socks5://127.0.0.1:9050"), plan.setup_steps)
+        self.assertEqual(("start managed Tor daemon", "wait for socks5://127.0.0.1:9050"), plan.setup_steps)
 
     def test_custom_state_dir_changes_profile_path(self) -> None:
         config = AppConfig(state_dir=".local/ampb", transport_modes={})
@@ -80,7 +83,7 @@ class PrepareOpenTest(unittest.TestCase):
         self.assertEqual(
             (
                 "install or enable Android i2p provider",
-                "start visible Android foreground service",
+                "start visible Android foreground service for i2p",
                 "start managed Android i2p transport",
                 "wait for http://127.0.0.1:4444",
             ),
