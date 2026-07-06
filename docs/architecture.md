@@ -21,6 +21,7 @@ browser engine until those contracts are stable.
 - `ampbrowser.routing`: deterministic URL-to-transport rules.
 - `ampbrowser.transports`: local readiness checks for Tor, I2P, Reticulum, and Gemini.
 - `ampbrowser.plan`: dry-run action planner for browser launches.
+- `ampbrowser.launch`: side-effect-free launch specs and first-use consent state.
 - `ampbrowser.docsgen`: generated public documentation from code-owned metadata.
 
 ## Browser Strategy

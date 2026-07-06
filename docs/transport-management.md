@@ -5,6 +5,9 @@
 Transport management follows one rule: use what is already healthy, and manage missing
 transports only after the user opens a URL that needs them and approves setup.
 
+`ampbrowser open` currently emits a dry-run launch spec. The spec includes the selected
+profile, proxy endpoint, required setup steps, and whether user consent is still needed.
+
 ## Lifecycle
 
 1. Inspect known local endpoints.

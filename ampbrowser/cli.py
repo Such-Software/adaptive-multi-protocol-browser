@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 
 from .docsgen import generate_docs
+from .launch import prepare_open
 from .plan import plan_url
 from .routing import route_url
 from .transports import inspect_transports
@@ -20,6 +21,20 @@ def main(argv: list[str] | None = None) -> int:
     plan_parser = subcommands.add_parser("plan", help="Plan how a URL would be opened.")
     plan_parser.add_argument("url")
 
+    open_parser = subcommands.add_parser("open", help="Prepare a transport-aware open plan.")
+    open_parser.add_argument("url")
+    open_parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="Approve first-use setup in the dry-run plan.",
+    )
+    open_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        default=True,
+        help="Print the open plan without side effects. This is the current default.",
+    )
+
     subcommands.add_parser("inspect", help="Inspect local transport readiness.")
 
     docs_parser = subcommands.add_parser("docs", help="Generate or check generated docs.")
@@ -33,6 +48,8 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_route(args.url)
         if args.command == "plan":
             return _cmd_plan(args.url)
+        if args.command == "open":
+            return _cmd_open(args.url, consent=args.yes, dry_run=args.dry_run)
         if args.command == "inspect":
             return _cmd_inspect()
         if args.command == "docs":
@@ -76,6 +93,28 @@ def _cmd_plan(url: str) -> int:
     return 0
 
 
+def _cmd_open(url: str, *, consent: bool, dry_run: bool) -> int:
+    open_plan = prepare_open(url, consent=consent, dry_run=dry_run)
+    browse_plan = open_plan.browse_plan
+    setup_steps = "|".join(open_plan.setup_steps) if open_plan.setup_steps else "-"
+    message = _safe(open_plan.message)
+    print(
+        "AMPBROWSER_OPEN "
+        f"url={browse_plan.route.normalized} "
+        f"transport={browse_plan.route.transport} "
+        f"profile={browse_plan.route.profile} "
+        f"status={open_plan.status} "
+        f"dry_run={str(open_plan.dry_run).lower()} "
+        f"requires_consent={str(browse_plan.requires_consent).lower()} "
+        f"consent_granted={str(open_plan.consent_granted).lower()} "
+        f"profile_path={open_plan.profile_path} "
+        f"proxy={open_plan.proxy} "
+        f"setup_steps=\"{_safe(setup_steps)}\" "
+        f"message=\"{message}\""
+    )
+    return 0
+
+
 def _cmd_inspect() -> int:
     for status in inspect_transports():
         print(
@@ -99,3 +138,7 @@ def _cmd_docs(args) -> int:
         print(f"AMPBROWSER_DOCS status=ok mode={mode} changed={changed_text}")
         return 0
     return 1
+
+
+def _safe(value: str) -> str:
+    return value.replace('"', "'")

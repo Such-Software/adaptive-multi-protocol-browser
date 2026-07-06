@@ -33,6 +33,8 @@ python3 -m ampbrowser route http://example.b32.i2p/
 python3 -m ampbrowser route gemini://wownero.org/
 python3 -m ampbrowser inspect
 python3 -m ampbrowser plan gemini://wownero.org/
+python3 -m ampbrowser open https://wownero.org/
+python3 -m ampbrowser open http://example.b32.i2p/ --yes
 python3 -m ampbrowser docs generate
 python3 -m ampbrowser docs generate --check
 python3 tools/docs_check.py
@@ -43,6 +45,7 @@ python3 -m unittest discover -s tests
 
 - [Architecture](docs/architecture.md)
 - [Configuration](docs/configuration.md)
+- [Open flow](docs/open-flow.md)
 - [Transport management](docs/transport-management.md)
 - [Test fixtures](docs/test-fixtures.md)
 - [Autodocs and drift gates](docs/autodocs.md)
