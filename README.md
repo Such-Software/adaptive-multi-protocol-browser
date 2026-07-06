@@ -35,6 +35,7 @@ python3 -m ampbrowser inspect
 python3 -m ampbrowser plan gemini://wownero.org/
 python3 -m ampbrowser open https://wownero.org/
 python3 -m ampbrowser open http://example.b32.i2p/ --yes
+python3 -m ampbrowser open http://example.b32.i2p/ --config examples/config.toml
 python3 -m ampbrowser docs generate
 python3 -m ampbrowser docs generate --check
 python3 tools/docs_check.py

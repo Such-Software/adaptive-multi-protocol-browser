@@ -1,0 +1,9 @@
+[browser]
+default_engine = "system"
+state_dir = ".ampb"
+
+[transports.i2p]
+enabled = false
+
+[profiles]
+isolate_by_transport = true

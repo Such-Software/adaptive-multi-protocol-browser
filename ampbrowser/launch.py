@@ -2,10 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .config import AppConfig, default_config
 from .plan import BrowsePlan, plan_url
-
-
-PROFILE_ROOT = ".ampb/profiles"
 
 
 @dataclass(frozen=True)
@@ -20,9 +18,16 @@ class OpenPlan:
     message: str
 
 
-def prepare_open(raw_url: str, *, consent: bool = False, dry_run: bool = True) -> OpenPlan:
-    browse_plan = plan_url(raw_url)
-    profile_path = f"{PROFILE_ROOT}/{browse_plan.route.profile}"
+def prepare_open(
+    raw_url: str,
+    *,
+    consent: bool = False,
+    dry_run: bool = True,
+    config: AppConfig | None = None,
+) -> OpenPlan:
+    config = config or default_config()
+    browse_plan = plan_url(raw_url, config=config)
+    profile_path = config.profile_path(browse_plan.route.profile)
     proxy = _proxy_for(browse_plan)
 
     if browse_plan.action.startswith("blocked"):

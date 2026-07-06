@@ -17,7 +17,12 @@ user opens a URL that needs it and approves the first-use prompt.
 - `gemini://` URLs use the Gemini profile.
 - Reticulum-family URLs are routed to the Reticulum adapter once configured.
 
-## Future Config Shape
+## Config File
+
+By default AMPB reads `.ampb/config.toml` from the current working directory. Commands
+that make launch decisions also accept `--config <path>`.
+
+Example configs live under `examples/`.
 
 ```toml
 [browser]
@@ -26,12 +31,12 @@ state_dir = ".ampb"
 
 [transports.tor]
 enabled = true
-mode = "adopt-or-manage"
+mode = "adopt-or-prompt-manage"
 socks_endpoint = "127.0.0.1:9050"
 
 [transports.i2p]
 enabled = true
-mode = "adopt-or-manage"
+mode = "adopt-or-prompt-manage"
 http_proxy = "127.0.0.1:4444"
 
 [transports.reticulum]
@@ -41,6 +46,13 @@ mode = "adopt"
 [profiles]
 isolate_by_transport = true
 ```
+
+Supported transport modes:
+
+- `disabled`: do not open URLs that require this transport.
+- `adopt`: use the transport only if it is already running.
+- `adopt-or-prompt-manage`: adopt a running transport, otherwise show a first-use prompt
+  before managed setup.
 
 ## Public And Private Files
 

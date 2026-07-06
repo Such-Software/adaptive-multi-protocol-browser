@@ -1,0 +1,17 @@
+[browser]
+default_engine = "system"
+state_dir = ".ampb"
+
+[transports.tor]
+enabled = true
+mode = "adopt-or-prompt-manage"
+
+[transports.i2p]
+enabled = true
+mode = "adopt-or-prompt-manage"
+
+[transports.reticulum]
+enabled = false
+
+[profiles]
+isolate_by_transport = true

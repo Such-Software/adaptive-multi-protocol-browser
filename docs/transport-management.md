@@ -7,6 +7,7 @@ transports only after the user opens a URL that needs them and approves setup.
 
 `ampbrowser open` currently emits a dry-run launch spec. The spec includes the selected
 profile, proxy endpoint, required setup steps, and whether user consent is still needed.
+Transport policy comes from `.ampb/config.toml` or an explicit `--config` path.
 
 ## Lifecycle
 

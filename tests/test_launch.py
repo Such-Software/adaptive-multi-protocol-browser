@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
+from ampbrowser.config import AppConfig
 from ampbrowser.launch import prepare_open
 from ampbrowser.transports import TransportStatus
 
@@ -53,6 +54,13 @@ class PrepareOpenTest(unittest.TestCase):
         self.assertTrue(plan.dry_run)
         self.assertTrue(plan.consent_granted)
         self.assertEqual(("start managed tor", "wait for socks5://127.0.0.1:9050"), plan.setup_steps)
+
+    def test_custom_state_dir_changes_profile_path(self) -> None:
+        config = AppConfig(state_dir=".local/ampb", transport_modes={})
+
+        plan = prepare_open("wownero.org", config=config)
+
+        self.assertEqual(".local/ampb/profiles/clearnet", plan.profile_path)
 
 
 if __name__ == "__main__":
