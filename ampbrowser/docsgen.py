@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from .metadata import ROUTE_RULES, TRANSPORT_DEFINITIONS
+from .platforms import PLATFORM_CAPABILITIES
 
 
 GENERATED_DIR = Path("docs/generated")
@@ -12,6 +13,7 @@ def generate_docs(root: Path, *, check: bool = False) -> list[Path]:
     docs = {
         GENERATED_DIR / "route-rules.md": _route_rules_doc(),
         GENERATED_DIR / "transports.md": _transports_doc(),
+        GENERATED_DIR / "platform-capabilities.md": _platform_capabilities_doc(),
     }
     changed: list[Path] = []
     for rel_path, content in docs.items():
@@ -57,3 +59,16 @@ def _transports_doc() -> str:
             f"`{transport.profile}` | {transport.note} |"
         )
     return _header("Generated Transports") + "\n".join(rows) + "\n"
+
+
+def _platform_capabilities_doc() -> str:
+    rows = [
+        "| Transport | Platform | Browse | Adopt | Manage | Install | Note |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    for capability in PLATFORM_CAPABILITIES:
+        rows.append(
+            f"| `{capability.transport}` | `{capability.platform}` | `{capability.browse}` | "
+            f"`{capability.adopt}` | `{capability.manage}` | `{capability.install}` | {capability.note} |"
+        )
+    return _header("Generated Platform Capabilities") + "\n".join(rows) + "\n"

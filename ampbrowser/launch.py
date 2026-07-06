@@ -24,9 +24,10 @@ def prepare_open(
     consent: bool = False,
     dry_run: bool = True,
     config: AppConfig | None = None,
+    platform: str | None = None,
 ) -> OpenPlan:
     config = config or default_config()
-    browse_plan = plan_url(raw_url, config=config)
+    browse_plan = plan_url(raw_url, config=config, platform=platform)
     profile_path = config.profile_path(browse_plan.route.profile)
     proxy = _proxy_for(browse_plan)
 
@@ -89,12 +90,31 @@ def _setup_steps(browse_plan: BrowsePlan) -> tuple[str, ...]:
         return ()
 
     steps: list[str] = []
+    platform = browse_plan.platform_capability.platform
     if not browse_plan.status.installed:
-        steps.append(f"install {browse_plan.route.transport}")
-    steps.extend(
-        [
-            f"start managed {browse_plan.route.transport}",
-            f"wait for {browse_plan.status.endpoint}",
-        ]
-    )
+        if platform == "android":
+            steps.append(f"install or enable Android {browse_plan.route.transport} provider")
+        elif platform == "ios":
+            steps.append(f"enable foreground iOS {browse_plan.route.transport} session")
+        else:
+            steps.append(f"install {browse_plan.route.transport}")
+    if platform == "android":
+        steps.append("start visible Android foreground service")
+        steps.extend(
+            [
+                f"start managed Android {browse_plan.route.transport} transport",
+                f"wait for {browse_plan.status.endpoint}",
+            ]
+        )
+        return tuple(steps)
+    elif platform == "ios":
+        steps.append("start foreground-only iOS session")
+        steps.extend(
+            [
+                f"start foreground-only iOS {browse_plan.route.transport} transport",
+                f"wait for {browse_plan.status.endpoint}",
+            ]
+        )
+        return tuple(steps)
+    steps.extend([f"start managed {browse_plan.route.transport}", f"wait for {browse_plan.status.endpoint}"])
     return tuple(steps)

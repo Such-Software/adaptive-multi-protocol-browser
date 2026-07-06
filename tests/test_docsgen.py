@@ -14,7 +14,11 @@ class DocsGenTest(unittest.TestCase):
             changed = generate_docs(root)
 
             self.assertEqual(
-                {Path("docs/generated/route-rules.md"), Path("docs/generated/transports.md")},
+                {
+                    Path("docs/generated/platform-capabilities.md"),
+                    Path("docs/generated/route-rules.md"),
+                    Path("docs/generated/transports.md"),
+                },
                 set(changed),
             )
             self.assertEqual([], generate_docs(root, check=True))

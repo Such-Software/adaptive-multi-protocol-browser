@@ -8,6 +8,7 @@ from .config import load_config
 from .docsgen import generate_docs
 from .launch import prepare_open
 from .plan import plan_url
+from .platforms import PLATFORM_CHOICES
 from .routing import route_url
 from .transports import inspect_transports
 
@@ -22,10 +23,12 @@ def main(argv: list[str] | None = None) -> int:
     plan_parser = subcommands.add_parser("plan", help="Plan how a URL would be opened.")
     plan_parser.add_argument("url")
     plan_parser.add_argument("--config", type=Path, help="Path to an AMPB config file.")
+    plan_parser.add_argument("--platform", choices=PLATFORM_CHOICES, help="Target platform capability profile.")
 
     open_parser = subcommands.add_parser("open", help="Prepare a transport-aware open plan.")
     open_parser.add_argument("url")
     open_parser.add_argument("--config", type=Path, help="Path to an AMPB config file.")
+    open_parser.add_argument("--platform", choices=PLATFORM_CHOICES, help="Target platform capability profile.")
     open_parser.add_argument(
         "--yes",
         action="store_true",
@@ -50,9 +53,15 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "route":
             return _cmd_route(args.url)
         if args.command == "plan":
-            return _cmd_plan(args.url, config_path=args.config)
+            return _cmd_plan(args.url, config_path=args.config, platform=args.platform)
         if args.command == "open":
-            return _cmd_open(args.url, consent=args.yes, dry_run=args.dry_run, config_path=args.config)
+            return _cmd_open(
+                args.url,
+                consent=args.yes,
+                dry_run=args.dry_run,
+                config_path=args.config,
+                platform=args.platform,
+            )
         if args.command == "inspect":
             return _cmd_inspect()
         if args.command == "docs":
@@ -75,9 +84,9 @@ def _cmd_route(url: str) -> int:
     return 0
 
 
-def _cmd_plan(url: str, *, config_path: Path | None) -> int:
+def _cmd_plan(url: str, *, config_path: Path | None, platform: str | None) -> int:
     config = load_config(Path.cwd(), config_path)
-    plan = plan_url(url, config=config)
+    plan = plan_url(url, config=config, platform=platform)
     endpoint = plan.status.endpoint if plan.status else "-"
     running = str(plan.status.running).lower() if plan.status else "false"
     installed = str(plan.status.installed).lower() if plan.status else "false"
@@ -90,6 +99,9 @@ def _cmd_plan(url: str, *, config_path: Path | None) -> int:
         f"installed={installed} "
         f"running={running} "
         f"endpoint={endpoint} "
+        f"platform={plan.platform_capability.platform} "
+        f"platform_browse={plan.platform_capability.browse} "
+        f"platform_manage={plan.platform_capability.manage} "
         f"policy={plan.policy_mode} "
         f"requires_consent={str(plan.requires_consent).lower()} "
         f"action=\"{plan.action}\" "
@@ -98,9 +110,16 @@ def _cmd_plan(url: str, *, config_path: Path | None) -> int:
     return 0
 
 
-def _cmd_open(url: str, *, consent: bool, dry_run: bool, config_path: Path | None) -> int:
+def _cmd_open(
+    url: str,
+    *,
+    consent: bool,
+    dry_run: bool,
+    config_path: Path | None,
+    platform: str | None,
+) -> int:
     config = load_config(Path.cwd(), config_path)
-    open_plan = prepare_open(url, consent=consent, dry_run=dry_run, config=config)
+    open_plan = prepare_open(url, consent=consent, dry_run=dry_run, config=config, platform=platform)
     browse_plan = open_plan.browse_plan
     setup_steps = "|".join(open_plan.setup_steps) if open_plan.setup_steps else "-"
     message = _safe(open_plan.message)
@@ -111,6 +130,9 @@ def _cmd_open(url: str, *, consent: bool, dry_run: bool, config_path: Path | Non
         f"profile={browse_plan.route.profile} "
         f"status={open_plan.status} "
         f"dry_run={str(open_plan.dry_run).lower()} "
+        f"platform={browse_plan.platform_capability.platform} "
+        f"platform_browse={browse_plan.platform_capability.browse} "
+        f"platform_manage={browse_plan.platform_capability.manage} "
         f"policy={browse_plan.policy_mode} "
         f"requires_consent={str(browse_plan.requires_consent).lower()} "
         f"consent_granted={str(open_plan.consent_granted).lower()} "

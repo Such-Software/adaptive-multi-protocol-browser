@@ -27,4 +27,5 @@ python3 -m ampbrowser open https://wownero.org/
 python3 -m ampbrowser open http://example.b32.i2p/
 python3 -m ampbrowser open http://example.b32.i2p/ --yes
 python3 -m ampbrowser open http://example.b32.i2p/ --config examples/config.toml
+python3 -m ampbrowser open http://example.b32.i2p/ --platform android
 ```

@@ -89,6 +89,41 @@ class PlanUrlTest(unittest.TestCase):
         self.assertEqual("blocked by policy: tor mode is adopt", plan.action)
         self.assertFalse(plan.requires_consent)
 
+    def test_android_platform_is_reported_on_plan(self) -> None:
+        status = TransportStatus(
+            transport="tor",
+            installed=False,
+            running=False,
+            endpoint="socks5://127.0.0.1:9050",
+            adoptable=False,
+            manage_supported=True,
+            note="Tor SOCKS proxy",
+        )
+
+        with patch("ampbrowser.plan.inspect_transport", return_value=status):
+            plan = plan_url("http://example.onion/", platform="android")
+
+        self.assertEqual("android", plan.platform_capability.platform)
+        self.assertEqual("planned", plan.platform_capability.manage)
+        self.assertTrue(plan.requires_consent)
+
+    def test_ios_foreground_only_transport_prompt(self) -> None:
+        status = TransportStatus(
+            transport="tor",
+            installed=False,
+            running=False,
+            endpoint="socks5://127.0.0.1:9050",
+            adoptable=False,
+            manage_supported=True,
+            note="Tor SOCKS proxy",
+        )
+
+        with patch("ampbrowser.plan.inspect_transport", return_value=status):
+            plan = plan_url("http://example.onion/", platform="ios")
+
+        self.assertEqual("prompt to enable foreground-only transport session", plan.action)
+        self.assertIn("foreground-only", plan.prompt)
+
 
 if __name__ == "__main__":
     unittest.main()

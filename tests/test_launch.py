@@ -62,6 +62,31 @@ class PrepareOpenTest(unittest.TestCase):
 
         self.assertEqual(".local/ampb/profiles/clearnet", plan.profile_path)
 
+    def test_android_setup_steps_include_foreground_service(self) -> None:
+        status = TransportStatus(
+            transport="i2p",
+            installed=False,
+            running=False,
+            endpoint="http://127.0.0.1:4444",
+            adoptable=False,
+            manage_supported=True,
+            note="I2P HTTP proxy",
+        )
+
+        with patch("ampbrowser.plan.inspect_transport", return_value=status):
+            plan = prepare_open("http://example.b32.i2p/", platform="android")
+
+        self.assertEqual("android", plan.browse_plan.platform_capability.platform)
+        self.assertEqual(
+            (
+                "install or enable Android i2p provider",
+                "start visible Android foreground service",
+                "start managed Android i2p transport",
+                "wait for http://127.0.0.1:4444",
+            ),
+            plan.setup_steps,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

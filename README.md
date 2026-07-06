@@ -36,6 +36,7 @@ python3 -m ampbrowser plan gemini://wownero.org/
 python3 -m ampbrowser open https://wownero.org/
 python3 -m ampbrowser open http://example.b32.i2p/ --yes
 python3 -m ampbrowser open http://example.b32.i2p/ --config examples/config.toml
+python3 -m ampbrowser open http://example.b32.i2p/ --platform android
 python3 -m ampbrowser docs generate
 python3 -m ampbrowser docs generate --check
 python3 tools/docs_check.py
@@ -46,6 +47,7 @@ python3 -m unittest discover -s tests
 
 - [Architecture](docs/architecture.md)
 - [Configuration](docs/configuration.md)
+- [Mobile browser](docs/mobile-browser.md)
 - [Open flow](docs/open-flow.md)
 - [Transport management](docs/transport-management.md)
 - [Test fixtures](docs/test-fixtures.md)

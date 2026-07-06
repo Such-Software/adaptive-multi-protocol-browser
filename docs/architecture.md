@@ -22,6 +22,7 @@ browser engine until those contracts are stable.
 - `ampbrowser.transports`: local readiness checks for Tor, I2P, Reticulum, and Gemini.
 - `ampbrowser.plan`: dry-run action planner for browser launches.
 - `ampbrowser.launch`: side-effect-free launch specs and first-use consent state.
+- `ampbrowser.platforms`: platform capability matrix for desktop, Android, and iOS.
 - `ampbrowser.docsgen`: generated public documentation from code-owned metadata.
 
 ## Browser Strategy
