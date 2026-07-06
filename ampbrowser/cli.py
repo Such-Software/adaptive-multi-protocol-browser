@@ -190,6 +190,11 @@ def _cmd_fixture(args) -> int:
                 f"actual_transport={check.actual_transport} "
                 f"expected_profile={check.expected_profile} "
                 f"actual_profile={check.actual_profile} "
+                f"tier={check.tier} "
+                f"identity={check.identity} "
+                f"payments={check.payments} "
+                f"realtime={str(check.realtime).lower()} "
+                f"public_allowed={str(check.public_allowed).lower()} "
                 f"status={check.status} "
                 f"message=\"{_safe(check.message)}\""
             )

@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .interaction_policy import interaction_failures
 from .routing import route_url
 
 
@@ -20,6 +21,11 @@ class FixtureCheck:
     actual_transport: str
     expected_profile: str
     actual_profile: str
+    tier: str
+    identity: str
+    payments: str
+    realtime: bool
+    public_allowed: bool
     status: str
     message: str
 
@@ -70,6 +76,7 @@ def _check_fixture(site_id: str, fixture: Any, path: Path) -> FixtureCheck:
         raise ValueError(f"{path}: {protocol}: missing checks table")
     expected_transport = _string(checks, "transport")
     expected_profile = _string(checks, "profile")
+    interaction = _interaction_policy(fixture)
 
     route = route_url(url)
     failures: list[str] = []
@@ -77,6 +84,16 @@ def _check_fixture(site_id: str, fixture: Any, path: Path) -> FixtureCheck:
         failures.append(f"transport expected {expected_transport} got {route.transport}")
     if route.profile != expected_profile:
         failures.append(f"profile expected {expected_profile} got {route.profile}")
+    failures.extend(
+        interaction_failures(
+            expected_transport,
+            tier=interaction["tier"],
+            identity=interaction["identity"],
+            payments=interaction["payments"],
+            realtime=interaction["realtime"],
+            public_allowed=interaction["public_allowed"],
+        )
+    )
 
     return FixtureCheck(
         site_id=site_id,
@@ -86,6 +103,11 @@ def _check_fixture(site_id: str, fixture: Any, path: Path) -> FixtureCheck:
         actual_transport=route.transport,
         expected_profile=expected_profile,
         actual_profile=route.profile,
+        tier=interaction["tier"],
+        identity=interaction["identity"],
+        payments=interaction["payments"],
+        realtime=interaction["realtime"],
+        public_allowed=interaction["public_allowed"],
         status="fail" if failures else "ok",
         message="; ".join(failures) if failures else "route matches",
     )
@@ -102,4 +124,31 @@ def _string(data: dict[str, Any], key: str) -> str:
     value = data.get(key)
     if not isinstance(value, str) or not value:
         raise ValueError(f"missing required string field {key!r}")
+    return value
+
+
+def _interaction_policy(fixture: dict[str, Any]) -> dict[str, Any]:
+    raw = fixture.get("interaction", {})
+    if not isinstance(raw, dict):
+        raise ValueError(f"{fixture.get('protocol', 'fixture')}: interaction must be a table")
+    return {
+        "tier": _optional_string(raw, "tier", "static"),
+        "identity": _optional_string(raw, "identity", "none"),
+        "payments": _optional_string(raw, "payments", "none"),
+        "realtime": _optional_bool(raw, "realtime", False),
+        "public_allowed": _optional_bool(raw, "public_allowed", True),
+    }
+
+
+def _optional_string(data: dict[str, Any], key: str, default: str) -> str:
+    value = data.get(key, default)
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"interaction.{key} must be a non-empty string")
+    return value
+
+
+def _optional_bool(data: dict[str, Any], key: str, default: bool) -> bool:
+    value = data.get(key, default)
+    if not isinstance(value, bool):
+        raise ValueError(f"interaction.{key} must be true or false")
     return value
