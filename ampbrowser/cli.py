@@ -6,6 +6,7 @@ import sys
 
 from .config import load_config
 from .docsgen import generate_docs
+from .fixtures import check_fixture_manifest
 from .launch import prepare_open
 from .plan import plan_url
 from .platforms import PLATFORM_CHOICES
@@ -43,6 +44,11 @@ def main(argv: list[str] | None = None) -> int:
 
     subcommands.add_parser("inspect", help="Inspect local transport readiness.")
 
+    fixture_parser = subcommands.add_parser("fixture", help="Check AMPG fixture manifests.")
+    fixture_subcommands = fixture_parser.add_subparsers(dest="fixture_command", required=True)
+    fixture_check = fixture_subcommands.add_parser("check", help="Validate route expectations.")
+    fixture_check.add_argument("manifest", type=Path)
+
     docs_parser = subcommands.add_parser("docs", help="Generate or check generated docs.")
     docs_subcommands = docs_parser.add_subparsers(dest="docs_command", required=True)
     docs_generate = docs_subcommands.add_parser("generate", help="Generate docs from code.")
@@ -64,6 +70,8 @@ def main(argv: list[str] | None = None) -> int:
             )
         if args.command == "inspect":
             return _cmd_inspect()
+        if args.command == "fixture":
+            return _cmd_fixture(args)
         if args.command == "docs":
             return _cmd_docs(args)
     except Exception as exc:  # noqa: BLE001
@@ -166,6 +174,33 @@ def _cmd_docs(args) -> int:
         mode = "check" if args.check else "write"
         print(f"AMPBROWSER_DOCS status=ok mode={mode} changed={changed_text}")
         return 0
+    return 1
+
+
+def _cmd_fixture(args) -> int:
+    if args.fixture_command == "check":
+        result = check_fixture_manifest(args.manifest)
+        for check in result.checks:
+            print(
+                "AMPBROWSER_FIXTURE "
+                f"site={check.site_id} "
+                f"protocol={check.protocol} "
+                f"url={check.url} "
+                f"expected_transport={check.expected_transport} "
+                f"actual_transport={check.actual_transport} "
+                f"expected_profile={check.expected_profile} "
+                f"actual_profile={check.actual_profile} "
+                f"status={check.status} "
+                f"message=\"{_safe(check.message)}\""
+            )
+        print(
+            "AMPBROWSER_FIXTURE_SUMMARY "
+            f"site={result.site_id} "
+            f"manifest={result.manifest_path} "
+            f"checks={len(result.checks)} "
+            f"status={'ok' if result.ok else 'fail'}"
+        )
+        return 0 if result.ok else 1
     return 1
 
 

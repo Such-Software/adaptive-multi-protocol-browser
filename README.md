@@ -38,6 +38,7 @@ python3 -m ampbrowser open https://wownero.org/
 python3 -m ampbrowser open http://example.b32.i2p/ --yes
 python3 -m ampbrowser open http://example.b32.i2p/ --config examples/config.toml
 python3 -m ampbrowser open http://example.b32.i2p/ --platform android
+python3 -m ampbrowser fixture check ../adaptive-multi-protocol-gateway/dist/wownero/ampg-fixture-manifest.json
 python3 -m ampbrowser docs generate
 python3 -m ampbrowser docs generate --check
 python3 tools/docs_check.py
@@ -49,6 +50,7 @@ python3 -m unittest discover -s tests
 - [Architecture](docs/architecture.md)
 - [Candidate transports](docs/candidate-transports.md)
 - [Configuration](docs/configuration.md)
+- [Fixture manifests](docs/fixture-manifests.md)
 - [Mobile browser](docs/mobile-browser.md)
 - [Open flow](docs/open-flow.md)
 - [Transport management](docs/transport-management.md)

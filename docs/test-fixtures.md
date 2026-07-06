@@ -23,3 +23,4 @@ degradation.
 - Private addresses, tunnel keys, host inventory, and credentials stay out of public docs.
 - Browser checks prefer dry-run plans before live launch.
 - Static output from AMPG should be openable by AMPB without manual proxy setup.
+- AMPG fixture manifests should pass `ampbrowser fixture check`.
