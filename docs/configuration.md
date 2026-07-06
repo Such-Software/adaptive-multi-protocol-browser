@@ -14,8 +14,9 @@ user opens a URL that needs it and approves the first-use prompt.
 - Clearnet URLs use a clearnet profile.
 - `.onion` hosts use Tor through `127.0.0.1:9050` when available.
 - `.i2p` hosts use I2P through `127.0.0.1:4444` when available.
+- `ipfs://`, `ipns://`, `/ipfs/`, and `/ipns/` addresses use a local IPFS gateway when available.
 - `gemini://` URLs use the Gemini profile.
-- Reticulum-family URLs are routed to the Reticulum adapter once configured.
+- Reticulum-family URLs use the Reticulum adapter for resilient/private routing once configured.
 
 ## Config File
 
@@ -38,6 +39,11 @@ socks_endpoint = "127.0.0.1:9050"
 enabled = true
 mode = "adopt-or-prompt-manage"
 http_proxy = "127.0.0.1:4444"
+
+[transports.ipfs]
+enabled = true
+mode = "adopt-or-prompt-manage"
+gateway = "127.0.0.1:8080"
 
 [transports.reticulum]
 enabled = false

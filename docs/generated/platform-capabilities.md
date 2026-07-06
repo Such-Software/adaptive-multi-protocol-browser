@@ -15,11 +15,14 @@ This file is generated from code. Do not edit it by hand.
 | `i2p` | `desktop` | `ready` | `ready` | `planned` | `planned` | Adopt local I2P proxy or prompt before managed desktop daemon setup. |
 | `i2p` | `android` | `planned` | `planned` | `planned` | `planned` | Use an app-owned foreground service or compatible installed I2P provider. |
 | `i2p` | `ios` | `constrained` | `planned` | `foreground-only` | `constrained` | Treat iOS I2P support as foreground-only until native adapter constraints are proven. |
+| `ipfs` | `desktop` | `ready` | `ready` | `planned` | `planned` | Adopt local IPFS gateway or prompt before managed gateway setup. |
+| `ipfs` | `android` | `planned` | `planned` | `planned` | `planned` | Use gateway-first IPFS browsing; embedded node support needs adapter proof. |
+| `ipfs` | `ios` | `constrained` | `planned` | `foreground-only` | `constrained` | Use gateway-first IPFS browsing; embedded node support is constrained. |
 | `gemini` | `desktop` | `ready` | `ready` | `ready` | `unsupported` | Built-in fetch/render path can be shared by desktop shell. |
 | `gemini` | `android` | `ready` | `ready` | `ready` | `unsupported` | Built-in fetch/render path can be shared by Android shell. |
 | `gemini` | `ios` | `ready` | `ready` | `ready` | `unsupported` | Built-in fetch/render path can be shared by iOS shell. |
-| `reticulum` | `desktop` | `planned` | `planned` | `planned` | `planned` | Adapter and local interface readiness checks are planned. |
-| `reticulum` | `android` | `planned` | `planned` | `planned` | `planned` | Mobile adapter should use explicit foreground service consent. |
+| `reticulum` | `desktop` | `planned` | `planned` | `planned` | `planned` | Resilient/private networking adapter and interface checks are planned. |
+| `reticulum` | `android` | `planned` | `planned` | `planned` | `planned` | Mobile resilient-network adapter should use explicit foreground service consent. |
 | `reticulum` | `ios` | `constrained` | `planned` | `foreground-only` | `constrained` | Do not assume background Reticulum operation on iOS. |
 | `unknown` | `desktop` | `unsupported` | `unsupported` | `unsupported` | `unsupported` | No platform route is available. |
 | `unknown` | `android` | `unsupported` | `unsupported` | `unsupported` | `unsupported` | No platform route is available. |

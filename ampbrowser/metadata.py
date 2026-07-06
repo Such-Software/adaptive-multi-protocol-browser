@@ -23,8 +23,9 @@ class TransportDefinition:
 ROUTE_RULES = (
     RouteRule("*.onion", "tor", "tor", "route through Tor SOCKS"),
     RouteRule("*.i2p", "i2p", "i2p", "route through I2P HTTP proxy"),
+    RouteRule("ipfs://*, ipns://*, /ipfs/*, /ipns/*", "ipfs", "ipfs", "route through local IPFS gateway"),
     RouteRule("gemini://*", "gemini", "gemini", "fetch and render Gemtext"),
-    RouteRule("rns://*, lxmf://*, nomad://*", "reticulum", "reticulum", "route through Reticulum adapter"),
+    RouteRule("rns://*, lxmf://*, nomad://*", "reticulum", "reticulum", "route to Reticulum adapter"),
     RouteRule("http://*, https://*", "clearnet", "clearnet", "ordinary web profile"),
 )
 
@@ -44,6 +45,13 @@ TRANSPORT_DEFINITIONS = (
         "Adopt existing i2pd/I2P router when healthy; otherwise prompt before managed setup.",
     ),
     TransportDefinition(
+        "ipfs",
+        "HTTP gateway on 127.0.0.1:8080",
+        ".ampb/transports/ipfs",
+        "ipfs",
+        "Adopt existing IPFS gateway when healthy; otherwise prompt before managed setup.",
+    ),
+    TransportDefinition(
         "gemini",
         "built-in renderer available",
         ".ampb/transports/gemini",
@@ -55,6 +63,6 @@ TRANSPORT_DEFINITIONS = (
         "RNS tools and configured interfaces",
         ".ampb/transports/reticulum",
         "reticulum",
-        "Adapter planned; physical/link-layer setup may require operator config.",
+        "Adapter planned for resilient/private routing; physical/link-layer setup may require operator config.",
     ),
 )

@@ -2,9 +2,9 @@
 
 > Status: draft | Updated 2026-07-05 | Applies to: AMPB contributors and integrators
 
-AMPB is a browser orchestration layer for privacy and alternate-network transports. It
-keeps the routing, transport management, and profile isolation decisions outside the
-browser engine until those contracts are stable.
+AMPB is a browser orchestration layer for privacy, resilient-network, content-addressed,
+and alternate-web transports. It keeps the routing, transport management, and profile
+isolation decisions outside the browser engine until those contracts are stable.
 
 ## Operating Model
 
@@ -20,7 +20,7 @@ browser engine until those contracts are stable.
 
 - `ampbrowser.routing`: deterministic URL-to-transport rules.
 - `ampbrowser.adapters`: transport ownership, setup, inspection, and health contracts.
-- `ampbrowser.transports`: local readiness checks for Tor, I2P, Reticulum, and Gemini.
+- `ampbrowser.transports`: local readiness checks for Tor, I2P, IPFS, Reticulum, and Gemini.
 - `ampbrowser.plan`: dry-run action planner for browser launches.
 - `ampbrowser.launch`: side-effect-free launch specs and first-use consent state.
 - `ampbrowser.platforms`: platform capability matrix for desktop, Android, and iOS.
@@ -31,7 +31,7 @@ browser engine until those contracts are stable.
 
 The first implementation should be a launcher and profile manager, not a browser-engine
 fork. Tor Browser, Mullvad Browser, Firefox profiles, Chromium profiles, terminal Gemini
-clients, and future Reticulum-native viewers can all sit behind the same route and
+clients, local IPFS gateways, and future Reticulum-native viewers can all sit behind the same route and
 transport contracts.
 
 The long-term browser can become more integrated once the orchestration surface is boring:

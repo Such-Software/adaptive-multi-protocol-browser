@@ -20,6 +20,12 @@ class PlatformsTest(unittest.TestCase):
         self.assertTrue(capability.can_manage_setup)
         self.assertIn("foreground", capability.note)
 
+    def test_ipfs_android_is_gateway_first_planned(self) -> None:
+        capability = capability_for("ipfs", "android")
+
+        self.assertEqual("planned", capability.manage)
+        self.assertIn("gateway-first", capability.note)
+
     def test_unknown_platform_is_rejected(self) -> None:
         with self.assertRaises(ValueError):
             normalize_platform("watch")

@@ -10,6 +10,10 @@ mode = "adopt-or-prompt-manage"
 enabled = true
 mode = "adopt-or-prompt-manage"
 
+[transports.ipfs]
+enabled = true
+mode = "adopt-or-prompt-manage"
+
 [transports.reticulum]
 enabled = false
 

@@ -90,6 +90,26 @@ class PrepareOpenTest(unittest.TestCase):
             plan.setup_steps,
         )
 
+    def test_ipfs_desktop_setup_uses_gateway_adapter(self) -> None:
+        status = TransportStatus(
+            transport="ipfs",
+            installed=False,
+            running=False,
+            endpoint="http://127.0.0.1:8080",
+            adoptable=False,
+            manage_supported=True,
+            note="IPFS local gateway",
+        )
+
+        with patch("ampbrowser.plan.inspect_transport", return_value=status):
+            plan = prepare_open("ipfs://bafyexample", consent=True)
+
+        self.assertEqual("setup-approved", plan.status)
+        self.assertEqual(
+            ("install IPFS/Kubo provider", "start managed IPFS gateway", "wait for http://127.0.0.1:8080"),
+            plan.setup_steps,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

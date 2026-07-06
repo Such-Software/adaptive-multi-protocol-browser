@@ -8,7 +8,7 @@ first-use setup prompt.
 
 ## Consent Model
 
-AMPB does not install or start Tor, I2P, Reticulum, or other optional transports when the
+AMPB does not install or start Tor, I2P, IPFS, Reticulum, or other optional transports when the
 application starts. Setup is lazy:
 
 1. The user opens a URL.

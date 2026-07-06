@@ -31,6 +31,24 @@ class RouteUrlTest(unittest.TestCase):
         self.assertEqual("gemini", route.transport)
         self.assertEqual("gemini", route.profile)
 
+    def test_routes_ipfs_scheme(self) -> None:
+        route = route_url("ipfs://bafyexample")
+
+        self.assertEqual("ipfs", route.transport)
+        self.assertEqual("ipfs", route.profile)
+
+    def test_routes_ipns_scheme(self) -> None:
+        route = route_url("ipns://wownero.example")
+
+        self.assertEqual("ipfs", route.transport)
+        self.assertEqual("ipfs", route.profile)
+
+    def test_routes_ipfs_gateway_path(self) -> None:
+        route = route_url("/ipfs/bafyexample")
+
+        self.assertEqual("ipfs://bafyexample", route.normalized)
+        self.assertEqual("ipfs", route.transport)
+
     def test_routes_reticulum_family_scheme(self) -> None:
         route = route_url("rns://wownero")
 

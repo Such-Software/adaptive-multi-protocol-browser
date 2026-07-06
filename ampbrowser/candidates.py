@@ -20,7 +20,7 @@ CANDIDATE_TRANSPORTS = (
     CandidateTransport(
         name="ipfs",
         role="content-addressed web",
-        status="next-evaluate",
+        status="active-dry-run",
         route_examples=("ipfs://<cid>", "/ipfs/<cid>", "ipns://<name>"),
         browser_fit="native fetch or local gateway",
         publisher_fit="static site export and pinning",

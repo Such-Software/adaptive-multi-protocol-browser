@@ -107,6 +107,24 @@ class PlanUrlTest(unittest.TestCase):
         self.assertEqual("planned", plan.platform_capability.manage)
         self.assertTrue(plan.requires_consent)
 
+    def test_ipfs_missing_gateway_prompts_before_setup(self) -> None:
+        status = TransportStatus(
+            transport="ipfs",
+            installed=False,
+            running=False,
+            endpoint="http://127.0.0.1:8080",
+            adoptable=False,
+            manage_supported=True,
+            note="IPFS local gateway",
+        )
+
+        with patch("ampbrowser.plan.inspect_transport", return_value=status):
+            plan = plan_url("ipfs://bafyexample")
+
+        self.assertEqual("ipfs", plan.route.transport)
+        self.assertEqual("prompt to install and start managed transport", plan.action)
+        self.assertTrue(plan.requires_consent)
+
     def test_ios_foreground_only_transport_prompt(self) -> None:
         status = TransportStatus(
             transport="tor",

@@ -11,7 +11,7 @@ class CandidateTransportsTest(unittest.TestCase):
 
         self.assertIn("ipfs", by_name)
         self.assertIn("yggdrasil", by_name)
-        self.assertEqual("next-evaluate", by_name["ipfs"].status)
+        self.assertEqual("active-dry-run", by_name["ipfs"].status)
         self.assertEqual("next-evaluate", by_name["yggdrasil"].status)
 
     def test_nostr_is_not_classified_as_page_transport(self) -> None:

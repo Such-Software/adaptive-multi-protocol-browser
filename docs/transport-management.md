@@ -32,8 +32,9 @@ leases, tunnels, and daemon logs in that tree are local state and must not be co
 
 - Tor: detect SOCKS on `127.0.0.1:9050`; managed start planned.
 - I2P: detect HTTP proxy on `127.0.0.1:4444`; managed start planned.
+- IPFS: detect HTTP gateway on `127.0.0.1:8080`; managed gateway start planned.
 - Gemini: built-in route and render path; no daemon required for static browsing.
-- Reticulum: route contract exists; adapter and readiness model are planned.
+- Reticulum: resilient/private route contract exists; adapter and readiness model are planned.
 
 Generated transport metadata lives in [generated transports](generated/transports.md).
 Adapter ownership and setup contracts live in [generated adapters](generated/adapters.md).
