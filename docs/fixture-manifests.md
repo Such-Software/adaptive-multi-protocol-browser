@@ -6,6 +6,9 @@ AMPB can check AMPG fixture manifests without contacting any network. The check 
 that each generated fixture URL routes to the expected AMPB transport and profile, and
 that its declared interaction policy fits that transport.
 
+Route-expanded fixtures may include `route.match` and `route.fixture_path`, which identify
+the route group that produced the fixture.
+
 ## Command
 
 ```sh

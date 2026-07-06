@@ -185,6 +185,8 @@ def _cmd_fixture(args) -> int:
                 "AMPBROWSER_FIXTURE "
                 f"site={check.site_id} "
                 f"protocol={check.protocol} "
+                f"route_match={check.route_match} "
+                f"fixture_path={check.fixture_path} "
                 f"url={check.url} "
                 f"expected_transport={check.expected_transport} "
                 f"actual_transport={check.actual_transport} "

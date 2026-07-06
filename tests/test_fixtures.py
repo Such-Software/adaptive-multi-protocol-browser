@@ -31,6 +31,7 @@ class FixtureCheckTest(unittest.TestCase):
                             {
                                 "protocol": "ipfs",
                                 "url": "ipfs://bafyexample",
+                                "route": {"match": "/snapshot/*", "fixture_path": "/snapshot/"},
                                 "checks": {"transport": "ipfs", "profile": "ipfs"},
                                 "interaction": {"tier": "static"},
                             },
@@ -44,6 +45,8 @@ class FixtureCheckTest(unittest.TestCase):
 
         self.assertTrue(result.ok)
         self.assertEqual(3, len(result.checks))
+        self.assertEqual("/snapshot/*", result.checks[2].route_match)
+        self.assertEqual("/snapshot/", result.checks[2].fixture_path)
 
     def test_reports_route_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

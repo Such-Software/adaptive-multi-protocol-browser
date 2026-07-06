@@ -16,6 +16,8 @@ SUPPORTED_SCHEMAS = {"ampg.fixture-manifest.v1"}
 class FixtureCheck:
     site_id: str
     protocol: str
+    route_match: str
+    fixture_path: str
     url: str
     expected_transport: str
     actual_transport: str
@@ -77,6 +79,7 @@ def _check_fixture(site_id: str, fixture: Any, path: Path) -> FixtureCheck:
     expected_transport = _string(checks, "transport")
     expected_profile = _string(checks, "profile")
     interaction = _interaction_policy(fixture)
+    route_metadata = _route_metadata(fixture)
 
     route = route_url(url)
     failures: list[str] = []
@@ -98,6 +101,8 @@ def _check_fixture(site_id: str, fixture: Any, path: Path) -> FixtureCheck:
     return FixtureCheck(
         site_id=site_id,
         protocol=protocol,
+        route_match=route_metadata["match"],
+        fixture_path=route_metadata["fixture_path"],
         url=route.normalized,
         expected_transport=expected_transport,
         actual_transport=route.transport,
@@ -137,6 +142,16 @@ def _interaction_policy(fixture: dict[str, Any]) -> dict[str, Any]:
         "payments": _optional_string(raw, "payments", "none"),
         "realtime": _optional_bool(raw, "realtime", False),
         "public_allowed": _optional_bool(raw, "public_allowed", True),
+    }
+
+
+def _route_metadata(fixture: dict[str, Any]) -> dict[str, str]:
+    raw = fixture.get("route", {})
+    if not isinstance(raw, dict):
+        raise ValueError(f"{fixture.get('protocol', 'fixture')}: route must be a table")
+    return {
+        "match": _optional_string(raw, "match", "/"),
+        "fixture_path": _optional_string(raw, "fixture_path", "/"),
     }
 
 
