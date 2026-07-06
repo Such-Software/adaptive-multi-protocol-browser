@@ -1,0 +1,12 @@
+[project]
+name = "adaptive-multi-protocol-browser"
+version = "0.1.0"
+description = "Transport-aware browser orchestration shell."
+requires-python = ">=3.11"
+license = "Apache-2.0"
+
+[project.scripts]
+ampbrowser = "ampbrowser.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,4 @@
+/.ampb/
+/docs/private/
+__pycache__/
+*.pyc
