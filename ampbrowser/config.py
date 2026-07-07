@@ -27,6 +27,7 @@ class AppConfig:
     runtime_path: str = ""
     isolate_by_transport: bool = True
     transport_modes: dict[str, str] | None = None
+    transport_binaries: dict[str, str] | None = None
 
     def transport_mode(self, transport: str) -> str:
         if not self.transport_modes:
@@ -37,6 +38,11 @@ class AppConfig:
         if self.isolate_by_transport:
             return str(Path(self.state_dir) / "profiles" / profile)
         return str(Path(self.state_dir) / "profile")
+
+    def transport_binary(self, transport: str) -> str:
+        if not self.transport_binaries:
+            return ""
+        return self.transport_binaries.get(transport, "")
 
 
 def default_config() -> AppConfig:
@@ -73,6 +79,7 @@ def _parse_config(data: dict[str, Any], path: Path) -> AppConfig:
     runtime_path = _string(browser, "runtime_path", "", path)
     isolate_by_transport = _bool(profiles, "isolate_by_transport", True, path)
     transport_modes = _transport_modes(transports, path)
+    transport_binaries = _transport_binaries(transports, path)
 
     return AppConfig(
         state_dir=state_dir,
@@ -80,6 +87,7 @@ def _parse_config(data: dict[str, Any], path: Path) -> AppConfig:
         runtime_path=runtime_path,
         isolate_by_transport=isolate_by_transport,
         transport_modes=transport_modes,
+        transport_binaries=transport_binaries,
     )
 
 
@@ -105,6 +113,19 @@ def _transport_modes(transports: dict[str, Any], path: Path) -> dict[str, str]:
             raise ConfigError(f"{path}: transports.{name}.mode must be one of: {choices}")
         modes[name] = mode
     return modes
+
+
+def _transport_binaries(transports: dict[str, Any], path: Path) -> dict[str, str]:
+    binaries: dict[str, str] = {}
+    for name, raw_config in transports.items():
+        if not isinstance(raw_config, dict):
+            raise ConfigError(f"{path}: transports.{name} must be a table")
+        binary_path = raw_config.get("binary_path", "")
+        if not isinstance(binary_path, str):
+            raise ConfigError(f"{path}: transports.{name}.binary_path must be a string")
+        if binary_path:
+            binaries[name] = binary_path
+    return binaries
 
 
 def _table(data: dict[str, Any], key: str, path: Path) -> dict[str, Any]:

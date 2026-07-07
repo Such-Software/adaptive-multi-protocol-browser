@@ -35,6 +35,8 @@ runtime_path = ""
 [transports.tor]
 enabled = true
 mode = "adopt-or-prompt-manage"
+# Optional. Used when AMPB should manage a local Tor binary.
+binary_path = ""
 socks_endpoint = "127.0.0.1:9050"
 
 [transports.i2p]

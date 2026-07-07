@@ -33,6 +33,8 @@ class OpenPlan:
     setup_steps: tuple[str, ...]
     message: str
     launch_spec: BrowserLaunchSpec | None = None
+    transport_setup_status: str = "-"
+    transport_setup_message: str = "-"
 
 
 def prepare_open(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 from pathlib import Path
 import shlex
 import sys
@@ -12,6 +13,7 @@ from .launch import execute_open, prepare_open
 from .plan import plan_url
 from .platforms import PLATFORM_CHOICES
 from .routing import route_url
+from .transport_manager import ensure_transport_ready
 from .transports import inspect_transports
 
 
@@ -138,6 +140,21 @@ def _cmd_open(
     config = load_config(Path.cwd(), config_path)
     open_plan = prepare_open(url, consent=consent, dry_run=dry_run, config=config, platform=platform)
     if launch:
+        if open_plan.status == "setup-approved":
+            transport_result = ensure_transport_ready(
+                open_plan.browse_plan.route.transport,
+                config=config,
+                root=Path.cwd(),
+                status=open_plan.browse_plan.status,
+            )
+            open_plan = replace(
+                open_plan,
+                dry_run=False,
+                status="ready" if transport_result.ready else transport_result.status,
+                message=transport_result.message,
+                transport_setup_status=transport_result.status,
+                transport_setup_message=transport_result.message,
+            )
         open_plan = execute_open(open_plan, root=Path.cwd())
     browse_plan = open_plan.browse_plan
     setup_steps = "|".join(open_plan.setup_steps) if open_plan.setup_steps else "-"
@@ -163,6 +180,8 @@ def _cmd_open(
         f"proxy={open_plan.proxy} "
         f"runtime_path={runtime_path} "
         f"user_js_path={user_js_path} "
+        f"transport_setup_status={open_plan.transport_setup_status} "
+        f"transport_setup_message=\"{_safe(open_plan.transport_setup_message)}\" "
         f"launch_command=\"{_safe(launch_command)}\" "
         f"setup_steps=\"{_safe(setup_steps)}\" "
         f"message=\"{message}\""

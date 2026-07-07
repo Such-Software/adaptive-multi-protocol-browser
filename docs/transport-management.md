@@ -9,7 +9,9 @@ transports only after the user opens a URL that needs them and approves setup.
 profile, proxy endpoint, browser runtime path, generated profile prefs path, required
 setup steps, and whether user consent is still needed. With `--launch`, AMPB creates the
 profile and starts the bundled browser only when the selected route is already ready.
-Transport policy comes from `.ampb/config.toml` or an explicit `--config` path.
+With `--launch --yes`, AMPB can start a configured Tor provider with AMPB-owned state
+before launching. Transport policy comes from `.ampb/config.toml` or an explicit
+`--config` path.
 
 ## Lifecycle
 
@@ -32,7 +34,8 @@ leases, tunnels, and daemon logs in that tree are local state and must not be co
 
 ## Current Adapters
 
-- Tor: detect SOCKS on `127.0.0.1:9050`; managed setup prefers Arti/Tor runtime ownership.
+- Tor: detect SOCKS on `127.0.0.1:9050`; managed start supports a configured `tor` binary
+  with AMPB-owned state; packaged Arti/Tor bundling remains a packaging target.
 - I2P: detect HTTP proxy on `127.0.0.1:4444`; managed start planned.
 - IPFS: detect HTTP gateway on `127.0.0.1:8080`; managed gateway start planned.
 - Gemini: built-in route and render path; no daemon required for static browsing.
