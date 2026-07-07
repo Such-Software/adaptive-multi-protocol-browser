@@ -52,15 +52,29 @@ Run the first desktop configure probe:
 AMPB_DESKTOP_BUILD_PROBE_MODE=configure sh tools/browser-desktop-build-probe.sh
 ```
 
+Run the first desktop source build:
+
+```sh
+AMPB_DESKTOP_BUILD_PROBE_MODE=build sh tools/browser-desktop-build-probe.sh
+```
+
+The default `source` flavor is the verified desktop path. Use
+`AMPB_DESKTOP_BUILD_FLAVOR=artifact` only as a faster optional probe; it depends on
+Mozilla artifact availability for the selected checkout.
+
 The probe writes:
 
-- `/tmp/ampb-browser-build/mozconfigs/desktop-debug.mozconfig`
-- `/tmp/ampb-browser-build/obj/gecko-desktop-debug`
-- `/tmp/ampb-browser-build/logs/gecko-desktop-mach-help.log`
-- `/tmp/ampb-browser-build/logs/gecko-desktop-mach-configure.log`
+- `/tmp/ampb-browser-build/mozconfigs/desktop-source.mozconfig`
+- `/tmp/ampb-browser-build/obj/gecko-desktop-source`
+- `/tmp/ampb-browser-build/logs/gecko-desktop-source-mach-help.log`
+- `/tmp/ampb-browser-build/logs/gecko-desktop-source-mach-configure.log`
+- `/tmp/ampb-browser-build/logs/gecko-desktop-source-mach-build.log`
 
-Configure mode may install Mozilla build Python helpers such as `zstandard` into mach
-virtualenvs under `/tmp/ampb-browser-build/cache/mozbuild`.
+A successful source build produces a bundled app at
+`/tmp/ampb-browser-build/obj/gecko-desktop-source/dist/Nightly.app`.
+
+Configure and build modes may install Mozilla build Python helpers such as `zstandard`
+into mach virtualenvs under `/tmp/ampb-browser-build/cache/mozbuild`.
 
 ## Source Plan
 

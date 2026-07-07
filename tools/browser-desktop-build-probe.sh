@@ -4,9 +4,10 @@ set -eu
 root="${AMPB_BROWSER_BUILD_ROOT:-/tmp/ampb-browser-build}"
 gecko_dir="$root/src/gecko-dev"
 mode="${AMPB_DESKTOP_BUILD_PROBE_MODE:-help}"
-log="$root/logs/gecko-desktop-mach-${mode}.log"
-mozconfig="$root/mozconfigs/desktop-debug.mozconfig"
-objdir="$root/obj/gecko-desktop-debug"
+flavor="${AMPB_DESKTOP_BUILD_FLAVOR:-source}"
+log="$root/logs/gecko-desktop-${flavor}-mach-${mode}.log"
+mozconfig="$root/mozconfigs/desktop-${flavor}.mozconfig"
+objdir="$root/obj/gecko-desktop-${flavor}"
 
 if [ ! -d "$gecko_dir" ]; then
   printf 'missing gecko checkout: %s\n' "$gecko_dir" >&2
@@ -26,8 +27,16 @@ mk_add_options MOZ_OBJDIR=$objdir
 ac_add_options --enable-application=browser
 ac_add_options --disable-crashreporter
 ac_add_options --disable-debug
-ac_add_options --enable-optimize
 EOF
+
+if [ "$flavor" = "artifact" ]; then
+  printf '%s\n' 'ac_add_options --enable-artifact-builds' >>"$mozconfig"
+elif [ "$flavor" != "source" ]; then
+  printf 'unsupported AMPB_DESKTOP_BUILD_FLAVOR: %s\n' "$flavor" >&2
+  exit 2
+else
+  printf '%s\n' 'ac_add_options --enable-optimize' >>"$mozconfig"
+fi
 
 cd "$gecko_dir"
 
@@ -59,10 +68,15 @@ case "$mode" in
     ensure_zstandard
     mach_env ./mach configure >"$log" 2>&1
     ;;
+  build)
+    mach_env ./mach build --help >/dev/null 2>&1
+    ensure_zstandard
+    mach_env ./mach build >"$log" 2>&1
+    ;;
   *)
     printf 'unsupported AMPB_DESKTOP_BUILD_PROBE_MODE: %s\n' "$mode" >&2
     exit 2
     ;;
 esac
 
-printf 'AMPB_DESKTOP_BUILD_PROBE status=ok mode=%s mozconfig=%s objdir=%s log=%s\n' "$mode" "$mozconfig" "$objdir" "$log"
+printf 'AMPB_DESKTOP_BUILD_PROBE status=ok mode=%s flavor=%s mozconfig=%s objdir=%s log=%s\n' "$mode" "$flavor" "$mozconfig" "$objdir" "$log"

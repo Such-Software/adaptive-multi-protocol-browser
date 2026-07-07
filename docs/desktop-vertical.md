@@ -14,11 +14,15 @@ Use the external build workspace:
 ```sh
 sh tools/browser-build-workspace.sh
 sh tools/browser-source-sync.sh
-AMPB_DESKTOP_BUILD_PROBE_MODE=configure sh tools/browser-desktop-build-probe.sh
+AMPB_DESKTOP_BUILD_PROBE_MODE=build sh tools/browser-desktop-build-probe.sh
 ```
 
 The desktop probe keeps Gecko source, object files, downloaded toolchains, Python
 virtualenvs, pip cache, and logs under `/tmp/ampb-browser-build`.
+
+The default build flavor is the verified source build. Use
+`AMPB_DESKTOP_BUILD_FLAVOR=artifact` only as a faster optional probe when upstream
+artifacts are available for the selected checkout.
 
 ## Transport Path
 
