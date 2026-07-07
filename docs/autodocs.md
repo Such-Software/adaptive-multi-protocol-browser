@@ -1,6 +1,6 @@
 # Autodocs
 
-> Status: draft | Updated 2026-07-05 | Applies to: AMPB maintainers
+> Status: draft | Updated 2026-07-07 | Applies to: AMPB maintainers
 
 Public docs should stay concise and current. Code-owned behavior is documented from code,
 while manual docs explain stable concepts and operator-facing choices.
@@ -19,7 +19,9 @@ Check for drift:
 python3 -m ampbrowser docs generate --check
 ```
 
-Generated files live under `docs/generated/` and must not be edited by hand.
+Generated files live under `docs/generated/` and must not be edited by hand. They cover
+route rules, active transports, browser backend strategy, adapter contracts, candidate
+transports, and platform capabilities.
 
 ## Manual Docs
 

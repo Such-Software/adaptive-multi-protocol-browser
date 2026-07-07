@@ -23,7 +23,7 @@ class ConfigError(ValueError):
 @dataclass(frozen=True)
 class AppConfig:
     state_dir: str = ".ampb"
-    default_engine: str = "system"
+    default_engine: str = "hardened-firefox"
     isolate_by_transport: bool = True
     transport_modes: dict[str, str] | None = None
 
@@ -68,7 +68,7 @@ def _parse_config(data: dict[str, Any], path: Path) -> AppConfig:
     transports = _table(data, "transports", path)
 
     state_dir = _string(browser, "state_dir", ".ampb", path)
-    default_engine = _string(browser, "default_engine", "system", path)
+    default_engine = _string(browser, "default_engine", "hardened-firefox", path)
     isolate_by_transport = _bool(profiles, "isolate_by_transport", True, path)
     transport_modes = _transport_modes(transports, path)
 

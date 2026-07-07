@@ -4,7 +4,7 @@ from pathlib import Path
 
 from .adapters import ADAPTERS
 from .candidates import CANDIDATE_TRANSPORTS
-from .metadata import ROUTE_RULES, TRANSPORT_DEFINITIONS
+from .metadata import BROWSER_BACKENDS, ROUTE_RULES, TRANSPORT_DEFINITIONS
 from .platforms import PLATFORM_CAPABILITIES
 
 
@@ -18,6 +18,7 @@ def generate_docs(root: Path, *, check: bool = False) -> list[Path]:
         GENERATED_DIR / "adapters.md": _adapters_doc(),
         GENERATED_DIR / "candidate-transports.md": _candidate_transports_doc(),
         GENERATED_DIR / "platform-capabilities.md": _platform_capabilities_doc(),
+        GENERATED_DIR / "browser-strategy.md": _browser_strategy_doc(),
     }
     changed: list[Path] = []
     for rel_path, content in docs.items():
@@ -104,3 +105,16 @@ def _candidate_transports_doc() -> str:
             f"[source]({candidate.source}) | {candidate.note} |"
         )
     return _header("Generated Candidate Transports") + "\n".join(rows) + "\n"
+
+
+def _browser_strategy_doc() -> str:
+    rows = [
+        "| Backend | Role | Status | Platforms | Launch Mode | Privacy Posture | Note |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    for backend in BROWSER_BACKENDS:
+        rows.append(
+            f"| `{backend.name}` | {backend.role} | `{backend.status}` | {backend.platforms} | "
+            f"{backend.launch_mode} | {backend.privacy_posture} | {backend.note} |"
+        )
+    return _header("Generated Browser Strategy") + "\n".join(rows) + "\n"

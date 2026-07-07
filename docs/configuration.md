@@ -1,6 +1,6 @@
 # Configuration
 
-> Status: draft | Updated 2026-07-05 | Applies to: AMPB users and package maintainers
+> Status: draft | Updated 2026-07-07 | Applies to: AMPB users and package maintainers
 
 AMPB should work without a config file for common local setups. Explicit configuration is
 for changing defaults, pinning binary paths, choosing managed state directories, and
@@ -27,7 +27,7 @@ Example configs live under `examples/`.
 
 ```toml
 [browser]
-default_engine = "system"
+default_engine = "hardened-firefox"
 state_dir = ".ampb"
 
 [transports.tor]
