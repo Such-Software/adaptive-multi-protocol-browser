@@ -8,18 +8,20 @@ mobile shells should implement only the platform-specific browser and transport 
 
 ## Android
 
-Android is the primary mobile target for full AMPB browsing. Tor, I2P, IPFS, and
-Reticulum adapters should run only after a URL selects that transport and the user
-approves setup. Managed adapters must use visible, stoppable foreground services and
-app-owned state. Tor should prefer an Arti/Tor runtime path when the native shell can
+Android is the primary mobile target for full AMPB browsing. It should ship a bundled
+GeckoView/Fenix/Tor Browser Android-lineage runtime, not depend on a system browser. Tor,
+I2P, IPFS, and Reticulum adapters should run only after a URL selects that transport and
+the user approves setup. Managed adapters must use visible, stoppable foreground services
+and app-owned state. Tor should prefer an Arti/Tor runtime path when the native shell can
 support it cleanly.
 
 ## iOS
 
-iOS is a supported design target, but transport management is constrained. AMPB should
-assume foreground-only sessions for managed transports unless a reviewed platform
-capability proves otherwise. The iOS shell should still share routing, policy, consent,
-fixture, Gemini, IPFS gateway, and clearnet behavior with the rest of AMPB.
+iOS is a supported design target, but transport management and browser engines are
+constrained. AMPB should ship its own iOS app shell, use platform WebKit views where
+required, and assume foreground-only sessions for managed transports unless a reviewed
+platform capability proves otherwise. The iOS shell should still share routing, policy,
+consent, fixture, Gemini, IPFS gateway, and clearnet behavior with the rest of AMPB.
 
 Tor on iOS should be modeled as an embedded Arti session, not a global daemon install.
 The first vertical should prove foreground `.onion` browsing through an app-owned Arti

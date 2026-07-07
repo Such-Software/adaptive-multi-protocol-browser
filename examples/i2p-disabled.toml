@@ -1,5 +1,5 @@
 [browser]
-default_engine = "hardened-firefox"
+default_engine = "ampb-gecko"
 state_dir = ".ampb"
 
 [transports.i2p]

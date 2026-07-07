@@ -13,7 +13,7 @@ class ConfigTest(unittest.TestCase):
             config = load_config(Path(tmp))
 
         self.assertEqual(".ampb", config.state_dir)
-        self.assertEqual("hardened-firefox", config.default_engine)
+        self.assertEqual("ampb-gecko", config.default_engine)
         self.assertEqual("adopt-or-prompt-manage", config.transport_mode("tor"))
         self.assertEqual(".ampb/profiles/tor", config.profile_path("tor"))
 

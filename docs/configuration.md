@@ -27,7 +27,7 @@ Example configs live under `examples/`.
 
 ```toml
 [browser]
-default_engine = "hardened-firefox"
+default_engine = "ampb-gecko"
 state_dir = ".ampb"
 
 [transports.tor]

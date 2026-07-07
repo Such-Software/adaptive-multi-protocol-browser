@@ -6,9 +6,9 @@ This file is generated from code. Do not edit it by hand.
 
 | Transport | Platform | Browse | Adopt | Manage | Install | Note |
 | --- | --- | --- | --- | --- | --- | --- |
-| `clearnet` | `desktop` | `ready` | `ready` | `unsupported` | `unsupported` | Use system browser or isolated desktop profile. |
-| `clearnet` | `android` | `ready` | `ready` | `unsupported` | `unsupported` | Use Android browser shell, WebView, or Custom Tabs. |
-| `clearnet` | `ios` | `ready` | `ready` | `unsupported` | `unsupported` | Use iOS browser shell with platform web constraints. |
+| `clearnet` | `desktop` | `ready` | `ready` | `unsupported` | `unsupported` | Use bundled AMPB Gecko desktop runtime with isolated profile. |
+| `clearnet` | `android` | `ready` | `ready` | `unsupported` | `unsupported` | Use bundled AMPB GeckoView Android runtime with isolated profile. |
+| `clearnet` | `ios` | `ready` | `ready` | `unsupported` | `unsupported` | Use bundled AMPB iOS shell with platform WebKit constraints. |
 | `tor` | `desktop` | `ready` | `ready` | `planned` | `planned` | Adopt local Tor or prompt before managed Arti SOCKS setup. |
 | `tor` | `android` | `planned` | `planned` | `planned` | `planned` | Use an app-owned foreground service; prefer Arti/Tor runtime integration where available. |
 | `tor` | `ios` | `foreground-only` | `planned` | `foreground-only` | `bundled` | Use foreground embedded Arti sessions; do not assume background service or global proxy. |

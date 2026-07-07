@@ -29,19 +29,20 @@ isolation decisions outside the browser engine until those contracts are stable.
 
 ## Browser Strategy
 
-The first implementation should be Firefox-first without becoming a browser-engine fork
-immediately. AMPB should control a hardened Firefox runtime, AMPB-owned profiles,
-transport proxy policy, native transport setup, and health checks while the orchestration
-contracts become stable.
+The first implementation should ship an AMPB-owned browser runtime, not attach to the
+host system browser. Desktop AMPB should be a bundled Firefox/Gecko-lineage app with
+AMPB-owned profiles, transport proxy policy, native transport setup, and health checks.
+Android AMPB should use a bundled GeckoView/Fenix/Tor Browser Android-lineage runtime
+with visible foreground transport services.
 
 Tor Browser compatibility is the high bar for `.onion` browsing. AMPB must not claim Tor
 Browser equivalence until it tracks the relevant Tor Browser hardening, fingerprinting,
-proxy, and update behavior. Chromium or CEF can remain a prototype fallback, but it is not
-the main privacy-browser strategy.
+proxy, and update behavior. AMPB should not depend on system Firefox, system Chrome, or
+the user's default browser.
 
-The long-term browser can become a deeper Firefox or Tor Browser fork once the
-orchestration surface is reliable: profile isolation is predictable, transport adoption is
-boring, and generated fixtures from AMPG open without manual proxy setup.
+The long-term browser can become a deeper Firefox, GeckoView, or Tor Browser fork once
+the orchestration surface is reliable: profile isolation is predictable, transport adoption
+is boring, and generated fixtures from AMPG open without manual proxy setup.
 
 Generated backend metadata lives in
 [generated browser strategy](generated/browser-strategy.md).
