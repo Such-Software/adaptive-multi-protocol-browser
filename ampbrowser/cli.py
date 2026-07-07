@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import shlex
 import sys
 
 from .config import load_config
 from .docsgen import generate_docs
 from .fixtures import check_fixture_manifest
-from .launch import prepare_open
+from .launch import execute_open, prepare_open
 from .plan import plan_url
 from .platforms import PLATFORM_CHOICES
 from .routing import route_url
@@ -35,11 +36,17 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Approve first-use setup in the dry-run plan.",
     )
-    open_parser.add_argument(
+    open_mode = open_parser.add_mutually_exclusive_group()
+    open_mode.add_argument(
         "--dry-run",
         action="store_true",
         default=True,
         help="Print the open plan without side effects. This is the current default.",
+    )
+    open_mode.add_argument(
+        "--launch",
+        action="store_true",
+        help="Create the isolated profile and launch the bundled browser when the route is ready.",
     )
 
     subcommands.add_parser("inspect", help="Inspect local transport readiness.")
@@ -64,7 +71,8 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_open(
                 args.url,
                 consent=args.yes,
-                dry_run=args.dry_run,
+                dry_run=not args.launch,
+                launch=args.launch,
                 config_path=args.config,
                 platform=args.platform,
             )
@@ -123,13 +131,20 @@ def _cmd_open(
     *,
     consent: bool,
     dry_run: bool,
+    launch: bool,
     config_path: Path | None,
     platform: str | None,
 ) -> int:
     config = load_config(Path.cwd(), config_path)
     open_plan = prepare_open(url, consent=consent, dry_run=dry_run, config=config, platform=platform)
+    if launch:
+        open_plan = execute_open(open_plan, root=Path.cwd())
     browse_plan = open_plan.browse_plan
     setup_steps = "|".join(open_plan.setup_steps) if open_plan.setup_steps else "-"
+    launch_spec = open_plan.launch_spec
+    launch_command = shlex.join(launch_spec.command) if launch_spec else "-"
+    runtime_path = launch_spec.runtime_path if launch_spec else "-"
+    user_js_path = launch_spec.user_js_path if launch_spec else "-"
     message = _safe(open_plan.message)
     print(
         "AMPBROWSER_OPEN "
@@ -146,6 +161,9 @@ def _cmd_open(
         f"consent_granted={str(open_plan.consent_granted).lower()} "
         f"profile_path={open_plan.profile_path} "
         f"proxy={open_plan.proxy} "
+        f"runtime_path={runtime_path} "
+        f"user_js_path={user_js_path} "
+        f"launch_command=\"{_safe(launch_command)}\" "
         f"setup_steps=\"{_safe(setup_steps)}\" "
         f"message=\"{message}\""
     )

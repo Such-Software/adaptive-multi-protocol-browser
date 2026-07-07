@@ -2,20 +2,31 @@ from __future__ import annotations
 
 import unittest
 from unittest.mock import patch
+import tempfile
+from pathlib import Path
 
 from ampbrowser.config import AppConfig
-from ampbrowser.launch import prepare_open
+from ampbrowser.launch import execute_open, prepare_open
 from ampbrowser.transports import TransportStatus
 
 
 class PrepareOpenTest(unittest.TestCase):
     def test_clearnet_is_ready_without_consent(self) -> None:
-        plan = prepare_open("wownero.org")
+        config = AppConfig(runtime_path="/opt/ampb/firefox", transport_modes={})
+
+        plan = prepare_open("wownero.org", config=config)
 
         self.assertEqual("ready", plan.status)
         self.assertFalse(plan.browse_plan.requires_consent)
         self.assertEqual(".ampb/profiles/clearnet", plan.profile_path)
         self.assertEqual("-", plan.proxy)
+        self.assertIsNotNone(plan.launch_spec)
+        self.assertEqual("/opt/ampb/firefox", plan.launch_spec.runtime_path)
+        self.assertEqual(".ampb/profiles/clearnet/user.js", plan.launch_spec.user_js_path)
+        self.assertEqual(
+            ("/opt/ampb/firefox", "-no-remote", "-profile", ".ampb/profiles/clearnet", "https://wownero.org"),
+            plan.launch_spec.command,
+        )
 
     def test_missing_i2p_requires_consent_before_setup(self) -> None:
         status = TransportStatus(
@@ -57,6 +68,57 @@ class PrepareOpenTest(unittest.TestCase):
         self.assertTrue(plan.dry_run)
         self.assertTrue(plan.consent_granted)
         self.assertEqual(("start managed Arti SOCKS proxy", "wait for socks5://127.0.0.1:9050"), plan.setup_steps)
+
+    def test_adopted_tor_launch_spec_sets_socks_remote_dns(self) -> None:
+        status = TransportStatus(
+            transport="tor",
+            installed=True,
+            running=True,
+            endpoint="socks5://127.0.0.1:9050",
+            adoptable=True,
+            manage_supported=True,
+            note="Tor SOCKS proxy",
+        )
+        config = AppConfig(runtime_path="/opt/ampb/firefox", transport_modes={})
+
+        with patch("ampbrowser.plan.inspect_transport", return_value=status):
+            plan = prepare_open("http://example.onion/", config=config)
+
+        self.assertEqual("ready", plan.status)
+        self.assertIsNotNone(plan.launch_spec)
+        self.assertIn('user_pref("network.proxy.socks", "127.0.0.1");', plan.launch_spec.prefs)
+        self.assertIn('user_pref("network.proxy.socks_port", 9050);', plan.launch_spec.prefs)
+        self.assertIn('user_pref("network.proxy.socks_remote_dns", true);', plan.launch_spec.prefs)
+
+    def test_execute_open_writes_profile_and_launches_when_ready(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            runtime = root / "firefox"
+            runtime.write_text("#!/bin/sh\n", encoding="utf-8")
+            config = AppConfig(runtime_path=str(runtime), transport_modes={})
+            plan = prepare_open("wownero.org", config=config)
+
+            with patch("ampbrowser.launch.subprocess.Popen") as popen:
+                launched = execute_open(plan, root=root)
+
+            self.assertEqual("launched", launched.status)
+            self.assertFalse(launched.dry_run)
+            popen.assert_called_once_with(
+                (str(runtime), "-no-remote", "-profile", ".ampb/profiles/clearnet", "https://wownero.org"),
+                cwd=str(root),
+            )
+            user_js = root / ".ampb/profiles/clearnet/user.js"
+            self.assertTrue(user_js.exists())
+            self.assertIn('user_pref("network.proxy.type", 0);', user_js.read_text(encoding="utf-8"))
+
+    def test_execute_open_blocks_when_runtime_is_missing(self) -> None:
+        config = AppConfig(runtime_path="/missing/ampb/firefox", transport_modes={})
+        plan = prepare_open("wownero.org", config=config)
+
+        launched = execute_open(plan, root=Path("/tmp"))
+
+        self.assertEqual("runtime-missing", launched.status)
+        self.assertIn("browser runtime not found", launched.message)
 
     def test_custom_state_dir_changes_profile_path(self) -> None:
         config = AppConfig(state_dir=".local/ampb", transport_modes={})

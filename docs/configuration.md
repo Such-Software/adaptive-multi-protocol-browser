@@ -29,6 +29,8 @@ Example configs live under `examples/`.
 [browser]
 default_engine = "ampb-gecko"
 state_dir = ".ampb"
+# Optional. Leave unset to use AMPB_BROWSER_BIN or the default /tmp build output.
+runtime_path = ""
 
 [transports.tor]
 enabled = true

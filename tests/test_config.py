@@ -14,6 +14,7 @@ class ConfigTest(unittest.TestCase):
 
         self.assertEqual(".ampb", config.state_dir)
         self.assertEqual("ampb-gecko", config.default_engine)
+        self.assertEqual("", config.runtime_path)
         self.assertEqual("adopt-or-prompt-manage", config.transport_mode("tor"))
         self.assertEqual(".ampb/profiles/tor", config.profile_path("tor"))
 
@@ -24,6 +25,7 @@ class ConfigTest(unittest.TestCase):
                 """
 [browser]
 state_dir = ".local/ampb"
+runtime_path = "/opt/ampb/firefox"
 
 [transports.tor]
 mode = "adopt"
@@ -37,6 +39,7 @@ enabled = false
             config = load_config(Path(tmp), path)
 
         self.assertEqual(".local/ampb", config.state_dir)
+        self.assertEqual("/opt/ampb/firefox", config.runtime_path)
         self.assertEqual("adopt", config.transport_mode("tor"))
         self.assertEqual("disabled", config.transport_mode("i2p"))
         self.assertEqual(".local/ampb/profiles/i2p", config.profile_path("i2p"))

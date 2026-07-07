@@ -24,6 +24,7 @@ class ConfigError(ValueError):
 class AppConfig:
     state_dir: str = ".ampb"
     default_engine: str = "ampb-gecko"
+    runtime_path: str = ""
     isolate_by_transport: bool = True
     transport_modes: dict[str, str] | None = None
 
@@ -69,12 +70,14 @@ def _parse_config(data: dict[str, Any], path: Path) -> AppConfig:
 
     state_dir = _string(browser, "state_dir", ".ampb", path)
     default_engine = _string(browser, "default_engine", "ampb-gecko", path)
+    runtime_path = _string(browser, "runtime_path", "", path)
     isolate_by_transport = _bool(profiles, "isolate_by_transport", True, path)
     transport_modes = _transport_modes(transports, path)
 
     return AppConfig(
         state_dir=state_dir,
         default_engine=default_engine,
+        runtime_path=runtime_path,
         isolate_by_transport=isolate_by_transport,
         transport_modes=transport_modes,
     )

@@ -17,8 +17,9 @@ application starts. Setup is lazy:
 4. If the transport is missing, AMPB shows a prompt naming what will be installed or started.
 5. AMPB proceeds only after approval.
 
-Current `open` output is a dry-run launch spec. It is intentionally side-effect free while
-the transport adapters and browser launcher are being stabilized.
+By default, `open` output is a dry-run launch spec. Use `--launch` to create the isolated
+profile and launch the configured browser runtime when the selected route is already
+ready. Transport install/start remains gated by first-use approval and readiness checks.
 
 ## Examples
 
@@ -28,4 +29,5 @@ python3 -m ampbrowser open http://example.b32.i2p/
 python3 -m ampbrowser open http://example.b32.i2p/ --yes
 python3 -m ampbrowser open http://example.b32.i2p/ --config examples/config.toml
 python3 -m ampbrowser open http://example.b32.i2p/ --platform android
+python3 -m ampbrowser open https://wownero.org/ --launch
 ```

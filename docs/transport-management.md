@@ -5,8 +5,10 @@
 Transport management follows one rule: use what is already healthy, and manage missing
 transports only after the user opens a URL that needs them and approves setup.
 
-`ampbrowser open` currently emits a dry-run launch spec. The spec includes the selected
-profile, proxy endpoint, required setup steps, and whether user consent is still needed.
+`ampbrowser open` emits a dry-run launch spec by default. The spec includes the selected
+profile, proxy endpoint, browser runtime path, generated profile prefs path, required
+setup steps, and whether user consent is still needed. With `--launch`, AMPB creates the
+profile and starts the bundled browser only when the selected route is already ready.
 Transport policy comes from `.ampb/config.toml` or an explicit `--config` path.
 
 ## Lifecycle
