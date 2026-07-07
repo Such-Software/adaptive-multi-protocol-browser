@@ -55,6 +55,7 @@ python3 -m unittest discover -s tests
 - [Browser builds](docs/browser-builds.md)
 - [Candidate transports](docs/candidate-transports.md)
 - [Configuration](docs/configuration.md)
+- [Desktop vertical](docs/desktop-vertical.md)
 - [Fixture manifests](docs/fixture-manifests.md)
 - [Mobile browser](docs/mobile-browser.md)
 - [Open flow](docs/open-flow.md)

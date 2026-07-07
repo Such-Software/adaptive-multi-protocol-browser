@@ -47,6 +47,8 @@ is boring, and generated fixtures from AMPG open without manual proxy setup.
 Generated backend metadata lives in
 [generated browser strategy](generated/browser-strategy.md).
 
+The first implementation path is documented in [desktop vertical](desktop-vertical.md).
+
 ## Relationship To AMPG
 
 AMPG publishes protocol-specific site variants. AMPB opens those variants with the right

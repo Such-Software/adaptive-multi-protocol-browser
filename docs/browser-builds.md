@@ -35,6 +35,33 @@ The script creates:
 - `/tmp/ampb-browser-build/artifacts`
 - `/tmp/ampb-browser-build/logs`
 
+## Desktop Build Probe
+
+Desktop is the first browser proof. The probe uses the current Gecko checkout and writes
+its mozconfig, object directory, caches, and logs under `/tmp`.
+
+Print the desktop build entrypoint help:
+
+```sh
+sh tools/browser-desktop-build-probe.sh
+```
+
+Run the first desktop configure probe:
+
+```sh
+AMPB_DESKTOP_BUILD_PROBE_MODE=configure sh tools/browser-desktop-build-probe.sh
+```
+
+The probe writes:
+
+- `/tmp/ampb-browser-build/mozconfigs/desktop-debug.mozconfig`
+- `/tmp/ampb-browser-build/obj/gecko-desktop-debug`
+- `/tmp/ampb-browser-build/logs/gecko-desktop-mach-help.log`
+- `/tmp/ampb-browser-build/logs/gecko-desktop-mach-configure.log`
+
+Configure mode may install Mozilla build Python helpers such as `zstandard` into mach
+virtualenvs under `/tmp/ampb-browser-build/cache/mozbuild`.
+
 ## Source Plan
 
 Print the canonical source targets and paths:
@@ -77,7 +104,8 @@ AMPB_INCLUDE_LEGACY_FIREFOX_ANDROID=1 sh tools/browser-source-sync.sh
 
 ## Android Build Probe
 
-Run the first Android build-discovery command from the `/tmp` checkout while keeping
+Android remains a first-class target, but it follows the desktop proof. Run the first
+Android build-discovery command from the `/tmp` checkout while keeping
 Gradle, pip, Python bytecode, and Mozilla build state in `/tmp`:
 
 ```sh
