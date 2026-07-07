@@ -35,6 +35,63 @@ The script creates:
 - `/tmp/ampb-browser-build/artifacts`
 - `/tmp/ampb-browser-build/logs`
 
+## Source Plan
+
+Print the canonical source targets and paths:
+
+```sh
+sh tools/browser-source-plan.sh
+```
+
+Clone or refresh the source trees under `/tmp`:
+
+```sh
+sh tools/browser-source-sync.sh
+```
+
+Report checked-out source revisions:
+
+```sh
+sh tools/browser-source-report.sh
+```
+
+Defaults:
+
+- Current Gecko / Firefox Android source: `https://github.com/mozilla/gecko-dev.git`
+- Tor Browser build recipes: `https://gitlab.torproject.org/tpo/applications/tor-browser-build.git`
+- Legacy archived Android layout reference: `https://github.com/mozilla-mobile/firefox-android.git`
+
+Override repositories for experiments without editing the repo:
+
+```sh
+AMPB_GECKO_REPO=https://github.com/mozilla/gecko-dev.git sh tools/browser-source-sync.sh
+```
+
+The legacy Firefox Android repository is archived and should not be treated as the current
+source of truth. Clone it only when comparing older `fenix`, `focus-android`, or
+`android-components` layout:
+
+```sh
+AMPB_INCLUDE_LEGACY_FIREFOX_ANDROID=1 sh tools/browser-source-sync.sh
+```
+
+## Android Build Probe
+
+Run the first Android build-discovery command from the `/tmp` checkout while keeping
+Gradle, pip, Python bytecode, and Mozilla build state in `/tmp`:
+
+```sh
+sh tools/browser-android-build-probe.sh
+```
+
+The probe writes its log to
+`/tmp/ampb-browser-build/logs/gecko-android-mach-probe.log`.
+
+This first probe intentionally asks `mach` for Android build help instead of compiling the
+world. It verifies that the current Gecko checkout, `mach`, Python virtualenv state, and
+Android build command entry point can initialize from `/tmp` before a longer bootstrap or
+compile run.
+
 ## Repo Rule
 
 Keep only repeatable scripts, clean docs, and small AMPB source changes in this repo.
