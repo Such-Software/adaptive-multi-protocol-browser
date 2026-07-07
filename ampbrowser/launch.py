@@ -100,7 +100,10 @@ def _setup_steps(browse_plan: BrowsePlan) -> tuple[str, ...]:
         steps.extend(adapter.setup_steps(installed=True, platform=platform))
         return tuple(steps)
     if platform == "ios" and not browse_plan.status.installed:
-        steps.append(f"enable foreground iOS {browse_plan.route.transport} session")
+        if browse_plan.route.transport == "tor":
+            steps.append("enable bundled iOS Arti Tor runtime")
+        else:
+            steps.append(f"enable foreground iOS {browse_plan.route.transport} session")
         steps.extend(adapter.setup_steps(installed=True, platform=platform))
         return tuple(steps)
     steps.extend(adapter.setup_steps(installed=browse_plan.status.installed, platform=platform))

@@ -56,7 +56,7 @@ class PrepareOpenTest(unittest.TestCase):
         self.assertEqual("setup-approved", plan.status)
         self.assertTrue(plan.dry_run)
         self.assertTrue(plan.consent_granted)
-        self.assertEqual(("start managed Tor daemon", "wait for socks5://127.0.0.1:9050"), plan.setup_steps)
+        self.assertEqual(("start managed Arti SOCKS proxy", "wait for socks5://127.0.0.1:9050"), plan.setup_steps)
 
     def test_custom_state_dir_changes_profile_path(self) -> None:
         config = AppConfig(state_dir=".local/ampb", transport_modes={})
@@ -107,6 +107,31 @@ class PrepareOpenTest(unittest.TestCase):
         self.assertEqual("setup-approved", plan.status)
         self.assertEqual(
             ("install IPFS/Kubo provider", "start managed IPFS gateway", "wait for http://127.0.0.1:8080"),
+            plan.setup_steps,
+        )
+
+    def test_ios_tor_setup_uses_bundled_arti_runtime(self) -> None:
+        status = TransportStatus(
+            transport="tor",
+            installed=False,
+            running=False,
+            endpoint="socks5://127.0.0.1:9050",
+            adoptable=False,
+            manage_supported=True,
+            note="Tor SOCKS proxy",
+        )
+
+        with patch("ampbrowser.plan.inspect_transport", return_value=status):
+            plan = prepare_open("http://example.onion/", platform="ios")
+
+        self.assertEqual("consent-required", plan.status)
+        self.assertEqual(
+            (
+                "enable bundled iOS Arti Tor runtime",
+                "start foreground-only iOS Arti client session",
+                "attach in-app onion networking bridge",
+                "wait for in-app Tor readiness",
+            ),
             plan.setup_steps,
         )
 

@@ -58,6 +58,11 @@ class TransportAdapter:
             steps.append(f"wait for {self.endpoint}")
             return tuple(steps)
         elif platform == "ios":
+            if self.name == "tor":
+                steps.append("start foreground-only iOS Arti client session")
+                steps.append("attach in-app onion networking bridge")
+                steps.append("wait for in-app Tor readiness")
+                return tuple(steps)
             steps.append(f"start foreground-only iOS session for {self.name}")
             steps.append(f"start foreground-only iOS {self.name} transport")
             steps.append(f"wait for {self.endpoint}")
@@ -75,11 +80,11 @@ ADAPTERS: dict[str, TransportAdapter] = {
         endpoint="socks5://127.0.0.1:9050",
         adopt_check="SOCKS on 127.0.0.1:9050",
         managed_state=".ampb/transports/tor",
-        install_strategy="install Tor provider",
-        start_strategy="start managed Tor daemon",
+        install_strategy="install or bundle Arti/Tor provider",
+        start_strategy="start managed Arti SOCKS proxy",
         stop_policy="stop only AMPB-owned Tor daemon",
-        note="Tor SOCKS proxy",
-        commands=("tor",),
+        note="Tor via existing SOCKS proxy or managed Arti/Tor runtime",
+        commands=("arti", "tor"),
         connect_host="127.0.0.1",
         connect_port=9050,
     ),

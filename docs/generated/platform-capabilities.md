@@ -9,9 +9,9 @@ This file is generated from code. Do not edit it by hand.
 | `clearnet` | `desktop` | `ready` | `ready` | `unsupported` | `unsupported` | Use system browser or isolated desktop profile. |
 | `clearnet` | `android` | `ready` | `ready` | `unsupported` | `unsupported` | Use Android browser shell, WebView, or Custom Tabs. |
 | `clearnet` | `ios` | `ready` | `ready` | `unsupported` | `unsupported` | Use iOS browser shell with platform web constraints. |
-| `tor` | `desktop` | `ready` | `ready` | `planned` | `planned` | Adopt local Tor or prompt before managed desktop daemon setup. |
-| `tor` | `android` | `planned` | `planned` | `planned` | `planned` | Use an app-owned foreground service or compatible installed Tor provider. |
-| `tor` | `ios` | `foreground-only` | `planned` | `foreground-only` | `constrained` | Plan for in-app foreground sessions; do not assume always-on background service. |
+| `tor` | `desktop` | `ready` | `ready` | `planned` | `planned` | Adopt local Tor or prompt before managed Arti SOCKS setup. |
+| `tor` | `android` | `planned` | `planned` | `planned` | `planned` | Use an app-owned foreground service; prefer Arti/Tor runtime integration where available. |
+| `tor` | `ios` | `foreground-only` | `planned` | `foreground-only` | `bundled` | Use foreground embedded Arti sessions; do not assume background service or global proxy. |
 | `i2p` | `desktop` | `ready` | `ready` | `planned` | `planned` | Adopt local I2P proxy or prompt before managed desktop daemon setup. |
 | `i2p` | `android` | `planned` | `planned` | `planned` | `planned` | Use an app-owned foreground service or compatible installed I2P provider. |
 | `i2p` | `ios` | `constrained` | `planned` | `foreground-only` | `constrained` | Treat iOS I2P support as foreground-only until native adapter constraints are proven. |

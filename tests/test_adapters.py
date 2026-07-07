@@ -24,8 +24,25 @@ class AdaptersTest(unittest.TestCase):
         self.assertIsNotNone(adapter)
         self.assertEqual("stop only AMPB-owned Tor daemon", adapter.stop_policy)
         self.assertEqual(
-            ("install Tor provider", "start managed Tor daemon", "wait for socks5://127.0.0.1:9050"),
+            (
+                "install or bundle Arti/Tor provider",
+                "start managed Arti SOCKS proxy",
+                "wait for socks5://127.0.0.1:9050",
+            ),
             adapter.setup_steps(installed=False, platform="desktop"),
+        )
+
+    def test_ios_tor_adapter_prefers_foreground_arti_session(self) -> None:
+        adapter = adapter_for("tor")
+
+        self.assertIsNotNone(adapter)
+        self.assertEqual(
+            (
+                "start foreground-only iOS Arti client session",
+                "attach in-app onion networking bridge",
+                "wait for in-app Tor readiness",
+            ),
+            adapter.setup_steps(installed=True, platform="ios"),
         )
 
     def test_ipfs_adapter_declares_gateway_not_anonymity(self) -> None:
