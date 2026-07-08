@@ -24,7 +24,7 @@ class PrepareOpenTest(unittest.TestCase):
         self.assertEqual("/opt/ampb/firefox", plan.launch_spec.runtime_path)
         self.assertEqual(".ampb/profiles/clearnet/user.js", plan.launch_spec.user_js_path)
         self.assertEqual(
-            ("/opt/ampb/firefox", "-no-remote", "-profile", ".ampb/profiles/clearnet", "https://wownero.org"),
+            ("/opt/ampb/firefox", "--new-instance", "--profile", ".ampb/profiles/clearnet", "https://wownero.org"),
             plan.launch_spec.command,
         )
 
@@ -116,8 +116,15 @@ class PrepareOpenTest(unittest.TestCase):
             self.assertFalse(launched.dry_run)
             self.assertEqual(popen.return_value.pid, launched.browser_pid)
             popen.assert_called_once_with(
-                (str(runtime), "-no-remote", "-profile", ".ampb/profiles/clearnet", "https://wownero.org"),
+                (
+                    str(runtime),
+                    "--new-instance",
+                    "--profile",
+                    str(root / ".ampb/profiles/clearnet"),
+                    "https://wownero.org",
+                ),
                 cwd=str(root),
+                start_new_session=True,
             )
             user_js = root / ".ampb/profiles/clearnet/user.js"
             self.assertTrue(user_js.exists())
@@ -148,8 +155,15 @@ class PrepareOpenTest(unittest.TestCase):
             self.assertEqual("http://127.0.0.1:44001/", launched.route_helper_endpoint)
             self.assertEqual(4321, launched.route_helper_pid)
             popen.assert_called_once_with(
-                (str(runtime), "-no-remote", "-profile", ".ampb/profiles/route-aware", "https://ampgateway.site/"),
+                (
+                    str(runtime),
+                    "--new-instance",
+                    "--profile",
+                    str(root / ".ampb/profiles/route-aware"),
+                    "https://ampgateway.site/",
+                ),
                 cwd=str(root),
+                start_new_session=True,
             )
             profile = root / ".ampb/profiles/route-aware"
             user_js = (profile / "user.js").read_text(encoding="utf-8")
@@ -166,8 +180,9 @@ class PrepareOpenTest(unittest.TestCase):
             background = (extension / "background.js").read_text(encoding="utf-8")
             setup = (extension / "setup.html").read_text(encoding="utf-8")
             self.assertIn("webNavigation", manifest)
-            self.assertIn("http://127.0.0.1:44001/", background)
-            self.assertIn("test-token", background)
+            self.assertIn("http://127.0.0.1:", background)
+            self.assertNotIn("__AMPB_ROUTE_HELPER_URL__", background)
+            self.assertNotIn("__AMPB_ROUTE_HELPER_TOKEN__", background)
             self.assertIn("Set Up Transport", setup)
 
     def test_execute_open_blocks_when_runtime_is_missing(self) -> None:
@@ -178,6 +193,48 @@ class PrepareOpenTest(unittest.TestCase):
 
         self.assertEqual("runtime-missing", launched.status)
         self.assertIn("browser runtime not found", launched.message)
+
+    def test_route_aware_launch_stops_helper_when_browser_exits_immediately(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            runtime = root / "firefox"
+            runtime.write_text("#!/bin/sh\n", encoding="utf-8")
+            config = AppConfig(runtime_path=str(runtime), transport_modes={})
+            plan = prepare_open("https://ampgateway.site/", config=config, route_aware=True)
+            helper = RouteHelperLaunch("started", endpoint="http://127.0.0.1:44001/", token="test-token", pid=4321)
+
+            with patch("ampbrowser.launch._start_route_helper", return_value=helper):
+                with patch("ampbrowser.launch._stop_route_helper", return_value="stopped") as stop_helper:
+                    with patch("ampbrowser.launch.subprocess.Popen") as popen:
+                        popen.return_value.pid = 9876
+                        popen.return_value.poll.return_value = 1
+                        launched = execute_open(plan, root=root)
+
+        self.assertEqual("browser-exited", launched.status)
+        self.assertEqual(9876, launched.browser_pid)
+        self.assertEqual("stopped", launched.route_helper_status)
+        self.assertIn("browser exited immediately", launched.message)
+        stop_helper.assert_called_once_with(helper)
+
+    def test_route_aware_launch_starts_helper_with_browser_pid(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            runtime = root / "firefox"
+            runtime.write_text("#!/bin/sh\n", encoding="utf-8")
+            config = AppConfig(runtime_path=str(runtime), transport_modes={})
+            plan = prepare_open("https://ampgateway.site/", config=config, route_aware=True)
+            helper = RouteHelperLaunch("started", endpoint="http://127.0.0.1:44001/", token="test-token", pid=4321)
+
+            with patch("ampbrowser.launch._start_route_helper", return_value=helper) as start_helper:
+                with patch("ampbrowser.launch.subprocess.Popen") as popen:
+                    popen.return_value.pid = 9876
+                    popen.return_value.poll.return_value = None
+                    launched = execute_open(plan, root=root)
+
+        self.assertEqual("launched", launched.status)
+        start_helper.assert_called_once()
+        self.assertEqual(9876, start_helper.call_args.kwargs["watch_pid"])
+        self.assertEqual("planned", start_helper.call_args.kwargs["planned"].status)
 
     def test_custom_state_dir_changes_profile_path(self) -> None:
         config = AppConfig(state_dir=".local/ampb", transport_modes={})

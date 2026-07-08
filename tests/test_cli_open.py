@@ -118,6 +118,14 @@ class CliOpenTest(unittest.TestCase):
         self.assertIn("profile_path=.ampb/profiles/route-aware", output)
         self.assertIn("pac_path=.ampb/profiles/route-aware/ampb-proxy.pac", output)
 
+    def test_hidden_helper_command_passes_watch_pid(self) -> None:
+        with patch("ampbrowser.cli.serve_route_helper") as helper:
+            code = main(["helper", "--port", "44001", "--token", "test-token", "--watch-pid", "9876"])
+
+        self.assertEqual(0, code)
+        helper.assert_called_once()
+        self.assertEqual(9876, helper.call_args.kwargs["watch_pid"])
+
 
 if __name__ == "__main__":
     unittest.main()

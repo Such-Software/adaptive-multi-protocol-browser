@@ -97,6 +97,7 @@ def main(argv: list[str] | None = None) -> int:
     helper_parser.add_argument("--token", required=True)
     helper_parser.add_argument("--root", type=Path, default=Path.cwd())
     helper_parser.add_argument("--config", type=Path, help="Path to an AMPB config file.")
+    helper_parser.add_argument("--watch-pid", type=int, default=0, help=argparse.SUPPRESS)
 
     args = parser.parse_args(argv)
     try:
@@ -322,6 +323,7 @@ def _cmd_helper(args) -> int:
         token=args.token,
         root=args.root,
         config_path=args.config,
+        watch_pid=args.watch_pid,
     )
     return 0
 

@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import os
 from pathlib import Path
+import threading
+import time
 from typing import Any
 
 from .config import AppConfig, load_config
@@ -40,12 +43,16 @@ def serve_route_helper(
     token: str,
     root: Path,
     config_path: Path | None = None,
+    watch_pid: int = 0,
 ) -> None:
     config = load_config(root, config_path)
     server = _RouteHelperServer((host, port), _RouteHelperHandler)
     server.token = token
     server.root_path = root
     server.config = config
+    if watch_pid > 0:
+        watcher = threading.Thread(target=_shutdown_when_pid_exits, args=(server, watch_pid), daemon=True)
+        watcher.start()
     server.serve_forever()
 
 
@@ -133,3 +140,19 @@ def _error_response(status: str, message: str) -> dict[str, Any]:
 
 def _string(value: object) -> str:
     return value if isinstance(value, str) else ""
+
+
+def _shutdown_when_pid_exits(server: _RouteHelperServer, pid: int, *, interval_seconds: float = 1.0) -> None:
+    while _pid_exists(pid):
+        time.sleep(interval_seconds)
+    server.shutdown()
+
+
+def _pid_exists(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True

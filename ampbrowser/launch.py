@@ -6,10 +6,12 @@ import json
 import os
 from pathlib import Path
 import secrets
+import signal
 import shlex
 import socket
 import subprocess
 import sys
+import time
 from urllib.parse import urlparse
 
 from .adapters import adapter_for
@@ -37,6 +39,7 @@ class RouteHelperLaunch:
     endpoint: str = "-"
     token: str = "-"
     pid: int = 0
+    watch_pid: int = 0
     command: tuple[str, ...] = ()
     message: str = "-"
 
@@ -191,15 +194,38 @@ def execute_open(open_plan: OpenPlan, *, root: Path | None = None) -> OpenPlan:
             message=f"browser runtime not found: {spec.runtime_path}",
         )
 
-    route_helper = _start_route_helper(root) if spec.route_aware else RouteHelperLaunch("disabled")
+    route_helper = _route_helper_launch_plan(root) if spec.route_aware else RouteHelperLaunch("disabled")
     _write_profile(root, spec, route_helper=route_helper)
-    process = subprocess.Popen(spec.command, cwd=str(root))  # noqa: S603
+    launch_spec = replace(spec, command=_execution_command(root, spec))
+    process = subprocess.Popen(launch_spec.command, cwd=str(root), start_new_session=True)  # noqa: S603
+    if spec.route_aware:
+        route_helper = _start_route_helper(root, planned=route_helper, watch_pid=process.pid)
+    exit_code = _immediate_exit_code(process)
+    if exit_code is not None:
+        helper_status = route_helper.status
+        helper_message = route_helper.message
+        if spec.route_aware:
+            helper_status = _stop_route_helper(route_helper)
+            helper_message = "stopped route helper after browser exited immediately"
+        return replace(
+            open_plan,
+            dry_run=False,
+            launch_spec=launch_spec,
+            status="browser-exited",
+            browser_pid=process.pid,
+            message=f"browser exited immediately with code {exit_code}",
+            route_helper_status=helper_status,
+            route_helper_endpoint=route_helper.endpoint,
+            route_helper_pid=route_helper.pid,
+            route_helper_message=helper_message,
+        )
     message = "launched bundled browser"
     if spec.route_aware:
         message = f"launched bundled browser with route helper {route_helper.status}"
     return replace(
         open_plan,
         dry_run=False,
+        launch_spec=launch_spec,
         status="launched",
         browser_pid=process.pid,
         message=message,
@@ -304,7 +330,7 @@ def _launch_spec_for(
         return None
     runtime_path = _runtime_path(config)
     user_js_path = str(Path(profile_path) / "user.js")
-    command = (runtime_path, "-no-remote", "-profile", profile_path, browse_plan.route.normalized)
+    command = (runtime_path, "--new-instance", "--profile", profile_path, browse_plan.route.normalized)
     prefs = _prefs_for(browse_plan, route_aware=route_aware)
     pac_path = str(Path(profile_path) / ROUTE_AWARE_PAC_NAME) if route_aware else "-"
     pac_content = _route_aware_pac() if route_aware else ""
@@ -633,10 +659,35 @@ def _format_pref(name: str, value: str | int | bool) -> str:
     return f"user_pref({json.dumps(name)}, {literal});"
 
 
-def _start_route_helper(root: Path) -> RouteHelperLaunch:
+def _route_helper_launch_plan(root: Path) -> RouteHelperLaunch:
     port = _free_loopback_port()
     token = secrets.token_urlsafe(24)
     endpoint = f"http://127.0.0.1:{port}/"
+    return RouteHelperLaunch(
+        "planned",
+        endpoint=endpoint,
+        token=token,
+        command=_route_helper_command(root=root, port=port, token=token),
+    )
+
+
+def _start_route_helper(
+    root: Path,
+    *,
+    planned: RouteHelperLaunch | None = None,
+    watch_pid: int = 0,
+) -> RouteHelperLaunch:
+    helper = planned or _route_helper_launch_plan(root)
+    port = _endpoint_host_port(helper.endpoint)[1]
+    command = _route_helper_command(root=root, port=port, token=helper.token, watch_pid=watch_pid)
+    try:
+        process = subprocess.Popen(command, cwd=str(root), start_new_session=True)  # noqa: S603
+    except OSError as exc:
+        return replace(helper, status="start-failed", command=command, watch_pid=watch_pid, message=str(exc))
+    return replace(helper, status="started", pid=process.pid, watch_pid=watch_pid, command=command, message="-")
+
+
+def _route_helper_command(*, root: Path, port: int, token: str, watch_pid: int = 0) -> tuple[str, ...]:
     command = (
         sys.executable,
         "-m",
@@ -651,11 +702,39 @@ def _start_route_helper(root: Path) -> RouteHelperLaunch:
         "--root",
         str(root),
     )
+    if watch_pid > 0:
+        command = (*command, "--watch-pid", str(watch_pid))
+    return command
+
+
+def _execution_command(root: Path, spec: BrowserLaunchSpec) -> tuple[str, ...]:
+    command = list(spec.command)
     try:
-        process = subprocess.Popen(command, cwd=str(root), start_new_session=True)  # noqa: S603
-    except OSError as exc:
-        return RouteHelperLaunch("start-failed", endpoint=endpoint, token=token, command=command, message=str(exc))
-    return RouteHelperLaunch("started", endpoint=endpoint, token=token, pid=process.pid, command=command)
+        profile_index = command.index("--profile") + 1
+    except ValueError:
+        return tuple(command)
+    if profile_index >= len(command):
+        return tuple(command)
+    command[profile_index] = str(_path_from(root, command[profile_index]))
+    return tuple(command)
+
+
+def _stop_route_helper(route_helper: RouteHelperLaunch) -> str:
+    if route_helper.pid <= 0:
+        return route_helper.status
+    try:
+        os.kill(route_helper.pid, signal.SIGTERM)
+    except OSError:
+        return "stop-failed"
+    return "stopped"
+
+
+def _immediate_exit_code(process: subprocess.Popen, *, wait_seconds: float = 1.0) -> int | None:
+    time.sleep(wait_seconds)
+    return_code = process.poll()
+    if isinstance(return_code, int):
+        return return_code
+    return None
 
 
 def _free_loopback_port() -> int:

@@ -1,6 +1,6 @@
 # Transport Management
 
-> Status: draft | Updated 2026-07-07 | Applies to: AMPB transport adapters
+> Status: draft | Updated 2026-07-08 | Applies to: AMPB transport adapters
 
 Transport management follows one rule: use what is already healthy, and manage missing
 transports only after the user opens a URL that needs them and approves setup.
@@ -20,7 +20,8 @@ user or system daemons.
 Route-aware desktop launches add a local helper process for in-browser setup prompts. The
 helper accepts token-gated loopback requests from the AMPB profile extension, reports
 transport status, and starts only supported AMPB-managed transports. It does not expose a
-public network listener or manage adopted daemons.
+public network listener or manage adopted daemons. The helper watches the browser process
+and exits when that isolated browser exits.
 
 ## Lifecycle
 
