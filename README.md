@@ -44,9 +44,13 @@ python3 -m ampbrowser open http://example.onion/ --yes --launch
 python3 -m ampbrowser shell http://example.onion/
 python3 -m ampbrowser shell http://example.onion/ --yes
 python3 -m ampbrowser open http://example.b32.i2p/ --yes
+python3 -m ampbrowser open http://example.b32.i2p/ --yes --launch
 python3 -m ampbrowser transport start tor
+python3 -m ampbrowser transport start i2p
 python3 -m ampbrowser transport status tor
+python3 -m ampbrowser transport status i2p
 python3 -m ampbrowser transport stop tor
+python3 -m ampbrowser transport stop i2p
 python3 -m ampbrowser open http://example.b32.i2p/ --config examples/config.toml
 python3 -m ampbrowser open http://example.b32.i2p/ --platform android
 python3 -m ampbrowser fixture check ../adaptive-multi-protocol-gateway/dist/wownero/ampg-fixture-manifest.json

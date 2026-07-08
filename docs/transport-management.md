@@ -9,8 +9,8 @@ transports only after the user opens a URL that needs them and approves setup.
 profile, proxy endpoint, browser runtime path, generated profile prefs path, required
 setup steps, and whether user consent is still needed. With `--launch`, AMPB creates the
 profile and starts the bundled browser only when the selected route is already ready.
-With `--launch --yes`, AMPB can start a configured Tor provider with AMPB-owned state
-before launching. Transport policy comes from `.ampb/config.toml` or an explicit
+With `--launch --yes`, AMPB can start configured Tor and I2P providers with AMPB-owned
+state before launching. Transport policy comes from `.ampb/config.toml` or an explicit
 `--config` path.
 
 `ampbrowser transport start|status|stop <name>` exposes the same ownership model without
@@ -39,9 +39,10 @@ AMPB records owned process metadata in `.ampb/transports/<name>/ampb-owned.json`
 
 ## Current Adapters
 
-- Tor: detect SOCKS on `127.0.0.1:9050`; managed start supports a configured `tor` binary
-  with AMPB-owned state; packaged Arti/Tor bundling remains a packaging target.
-- I2P: detect HTTP proxy on `127.0.0.1:4444`; managed start planned.
+- Tor: detect SOCKS on `127.0.0.1:9050`; managed start supports Arti, configured `tor`,
+  and system `tor` providers with AMPB-owned state.
+- I2P: detect HTTP proxy on `127.0.0.1:4444`; managed start supports configured or system
+  `i2pd` providers with AMPB-owned state.
 - IPFS: detect HTTP gateway on `127.0.0.1:8080`; managed gateway start planned.
 - Gemini: built-in route and render path; no daemon required for static browsing.
 - Reticulum: resilient/private route contract exists; adapter and readiness model are planned.

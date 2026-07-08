@@ -13,6 +13,8 @@ binary_path = ""
 [transports.i2p]
 enabled = true
 mode = "adopt-or-prompt-manage"
+# Optional. Used when AMPB should manage a local i2pd binary.
+binary_path = ""
 
 [transports.ipfs]
 enabled = true

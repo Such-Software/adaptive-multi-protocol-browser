@@ -26,6 +26,12 @@ class TorProvider:
 
 
 @dataclass(frozen=True)
+class I2PProvider:
+    kind: str
+    binary: str
+
+
+@dataclass(frozen=True)
 class ManagedTransportResult:
     transport: str
     provider: str
@@ -72,20 +78,22 @@ def ensure_transport_ready(
             f"adopted existing {transport} transport",
         )
 
-    if transport != "tor":
-        return ManagedTransportResult(
-            transport,
-            "-",
-            "unsupported",
-            status.endpoint,
-            False,
-            0,
-            _managed_state_dir(root, config, transport),
-            (),
-            f"managed start for {transport} is not implemented yet",
-        )
+    if transport == "tor":
+        return _start_tor(config=config, root=root, endpoint=status.endpoint, wait_seconds=wait_seconds)
+    if transport == "i2p":
+        return _start_i2p(config=config, root=root, endpoint=status.endpoint, wait_seconds=wait_seconds)
 
-    return _start_tor(config=config, root=root, endpoint=status.endpoint, wait_seconds=wait_seconds)
+    return ManagedTransportResult(
+        transport,
+        "-",
+        "unsupported",
+        status.endpoint,
+        False,
+        0,
+        _managed_state_dir(root, config, transport),
+        (),
+        f"managed start for {transport} is not implemented yet",
+    )
 
 
 def transport_status(
@@ -365,6 +373,159 @@ def _tor_command(provider: TorProvider, *, endpoint: str, state_path: Path) -> t
         "1",
         "--Log",
         f"notice file {state_path / 'tor.log'}",
+    )
+
+
+def _start_i2p(
+    *,
+    config: AppConfig,
+    root: Path,
+    endpoint: str,
+    wait_seconds: float,
+) -> ManagedTransportResult:
+    provider = _i2p_provider(config)
+    state_dir = _managed_state_dir(root, config, "i2p")
+    if not provider:
+        return ManagedTransportResult(
+            "i2p",
+            "-",
+            "missing-provider",
+            endpoint,
+            False,
+            0,
+            state_dir,
+            (),
+            "I2P provider not found; install i2pd or set AMPB_I2PD_BIN or transports.i2p.binary_path",
+        )
+
+    state_path = Path(state_dir)
+    state_path.mkdir(parents=True, exist_ok=True)
+    _chmod_private(state_path)
+
+    command = _i2p_command(provider, endpoint=endpoint, state_path=state_path)
+    try:
+        with (state_path / f"{provider.kind}.log").open("ab") as log_file:
+            process = subprocess.Popen(command, stdout=log_file, stderr=log_file, start_new_session=True)  # noqa: S603
+    except OSError as exc:
+        return ManagedTransportResult(
+            "i2p",
+            provider.kind,
+            "start-failed",
+            endpoint,
+            False,
+            0,
+            state_dir,
+            command,
+            f"managed {provider.kind} could not start: {exc}",
+        )
+
+    if _wait_for_endpoint(endpoint, timeout_seconds=wait_seconds):
+        result = ManagedTransportResult(
+            "i2p",
+            provider.kind,
+            "started",
+            endpoint,
+            True,
+            process.pid,
+            state_dir,
+            command,
+            f"started managed {provider.kind} transport",
+        )
+        _write_owned_state(root, config, result)
+        return result
+
+    process.terminate()
+    return ManagedTransportResult(
+        "i2p",
+        provider.kind,
+        "start-timeout",
+        endpoint,
+        True,
+        process.pid,
+        state_dir,
+        command,
+        f"managed {provider.kind} did not become ready at {endpoint}",
+    )
+
+
+def _i2p_provider(config: AppConfig) -> I2PProvider | None:
+    env_path = os.environ.get("AMPB_I2PD_BIN")
+    if env_path:
+        return I2PProvider("i2pd", env_path)
+
+    config_path = config.transport_binary("i2p")
+    if config_path:
+        return I2PProvider("i2pd", config_path)
+
+    system_i2pd = shutil.which("i2pd")
+    if system_i2pd:
+        return I2PProvider("i2pd", system_i2pd)
+    return None
+
+
+def _i2p_command(provider: I2PProvider, *, endpoint: str, state_path: Path) -> tuple[str, ...]:
+    host, port = _endpoint_host_port(endpoint)
+    data_dir = state_path / "i2pd-data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    _chmod_private(data_dir)
+    config_path = state_path / "i2pd.conf"
+    tunnels_path = state_path / "tunnels.conf"
+    tunnels_path.touch(exist_ok=True)
+    config_path.write_text(_i2pd_config(host=host, port=port, state_path=state_path), encoding="utf-8")
+    _chmod_private(config_path)
+    _chmod_private(tunnels_path)
+    return (
+        provider.binary,
+        "--conf",
+        str(config_path),
+        "--tunconf",
+        str(tunnels_path),
+        "--datadir",
+        str(data_dir),
+        "--daemon=false",
+        "--service=false",
+    )
+
+
+def _i2pd_config(*, host: str, port: int, state_path: Path) -> str:
+    return "\n".join(
+        (
+            "daemon = false",
+            "service = false",
+            "notransit = true",
+            "log = file",
+            f"logfile = {state_path / 'i2pd-router.log'}",
+            "loglevel = warn",
+            "",
+            "[http]",
+            "enabled = false",
+            "",
+            "[httpproxy]",
+            "enabled = true",
+            f"address = {host}",
+            f"port = {port}",
+            "addresshelper = true",
+            "senduseragent = false",
+            "",
+            "[socksproxy]",
+            "enabled = false",
+            "",
+            "[sam]",
+            "enabled = false",
+            "",
+            "[bob]",
+            "enabled = false",
+            "",
+            "[i2cp]",
+            "enabled = false",
+            "",
+            "[i2pcontrol]",
+            "enabled = false",
+            "",
+            "[upnp]",
+            "enabled = false",
+            "",
+        )
     )
 
 

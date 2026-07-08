@@ -42,6 +42,8 @@ socks_endpoint = "127.0.0.1:9050"
 [transports.i2p]
 enabled = true
 mode = "adopt-or-prompt-manage"
+# Optional. Used when AMPB should manage a local i2pd binary.
+binary_path = ""
 http_proxy = "127.0.0.1:4444"
 
 [transports.ipfs]

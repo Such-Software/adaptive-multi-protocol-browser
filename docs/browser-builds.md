@@ -94,6 +94,14 @@ workspace:
 `AMPB_ARTI_BIN`, `AMPB_TOR_BIN`, configured `transports.tor.binary_path`, and finally a
 system `tor` binary if one is present.
 
+## I2P Provider Probe
+
+Managed I2P startup currently targets `i2pd`. AMPB adopts an existing HTTP proxy on
+`127.0.0.1:4444` when available; otherwise `ampbrowser open <i2p-url> --yes --launch`
+uses `AMPB_I2PD_BIN`, configured `transports.i2p.binary_path`, or a system `i2pd` binary.
+The AMPB-owned process writes config, router data, logs, and ownership metadata under
+`.ampb/transports/i2p`.
+
 ## Source Plan
 
 Print the canonical source targets and paths:

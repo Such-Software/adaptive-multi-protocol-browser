@@ -252,7 +252,26 @@ class TransportManagerTest(unittest.TestCase):
         self.assertFalse(result.ready)
         popen.return_value.terminate.assert_called_once()
 
-    def test_non_tor_managed_start_is_reported_as_unsupported(self) -> None:
+    def test_reports_missing_i2p_provider(self) -> None:
+        status = TransportStatus(
+            transport="i2p",
+            installed=False,
+            running=False,
+            endpoint="http://127.0.0.1:4444",
+            adoptable=False,
+            manage_supported=True,
+            note="I2P HTTP proxy",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch("ampbrowser.transport_manager.shutil.which", return_value=None):
+                result = ensure_transport_ready("i2p", config=AppConfig(transport_modes={}), root=Path(tmp), status=status)
+
+        self.assertEqual("missing-provider", result.status)
+        self.assertFalse(result.ready)
+        self.assertIn("I2P provider not found", result.message)
+
+    def test_starts_configured_i2pd_provider_with_ampb_state(self) -> None:
         status = TransportStatus(
             transport="i2p",
             installed=True,
@@ -262,9 +281,72 @@ class TransportManagerTest(unittest.TestCase):
             manage_supported=True,
             note="I2P HTTP proxy",
         )
+        config = AppConfig(transport_modes={}, transport_binaries={"i2p": "/opt/ampb/i2pd"})
 
         with tempfile.TemporaryDirectory() as tmp:
-            result = ensure_transport_ready("i2p", config=AppConfig(transport_modes={}), root=Path(tmp), status=status)
+            root = Path(tmp)
+            with patch("ampbrowser.transport_manager._wait_for_endpoint", return_value=True):
+                with patch("ampbrowser.transport_manager.subprocess.Popen") as popen:
+                    popen.return_value.pid = 1234
+                    result = ensure_transport_ready("i2p", config=config, root=root, status=status)
+
+            self.assertEqual("started", result.status)
+            self.assertEqual("i2pd", result.provider)
+            self.assertTrue(result.owned)
+            self.assertEqual(1234, result.pid)
+            self.assertEqual(str(root / ".ampb/transports/i2p"), result.state_dir)
+            self.assertEqual("/opt/ampb/i2pd", result.command[0])
+            self.assertIn("--conf", result.command)
+            self.assertIn(str(root / ".ampb/transports/i2p/i2pd.conf"), result.command)
+            self.assertIn("--datadir", result.command)
+            self.assertIn(str(root / ".ampb/transports/i2p/i2pd-data"), result.command)
+            self.assertIn("--daemon=false", result.command)
+            self.assertIn("--service=false", result.command)
+            config_text = (root / ".ampb/transports/i2p/i2pd.conf").read_text(encoding="utf-8")
+            self.assertIn("[httpproxy]", config_text)
+            self.assertIn("address = 127.0.0.1", config_text)
+            self.assertIn("port = 4444", config_text)
+            self.assertIn("notransit = true", config_text)
+            state_path = root / ".ampb/transports/i2p/ampb-owned.json"
+            self.assertTrue(state_path.exists())
+            self.assertIn('"provider": "i2pd"', state_path.read_text(encoding="utf-8"))
+            popen.assert_called_once()
+
+    def test_terminates_owned_i2pd_process_on_timeout(self) -> None:
+        status = TransportStatus(
+            transport="i2p",
+            installed=True,
+            running=False,
+            endpoint="http://127.0.0.1:4444",
+            adoptable=False,
+            manage_supported=True,
+            note="I2P HTTP proxy",
+        )
+        config = AppConfig(transport_modes={}, transport_binaries={"i2p": "/opt/ampb/i2pd"})
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch("ampbrowser.transport_manager._wait_for_endpoint", return_value=False):
+                with patch("ampbrowser.transport_manager.subprocess.Popen") as popen:
+                    popen.return_value.pid = 1234
+                    result = ensure_transport_ready("i2p", config=config, root=Path(tmp), status=status)
+
+        self.assertEqual("start-timeout", result.status)
+        self.assertFalse(result.ready)
+        popen.return_value.terminate.assert_called_once()
+
+    def test_other_managed_start_is_reported_as_unsupported(self) -> None:
+        status = TransportStatus(
+            transport="ipfs",
+            installed=True,
+            running=False,
+            endpoint="http://127.0.0.1:8080",
+            adoptable=False,
+            manage_supported=True,
+            note="IPFS local gateway",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            result = ensure_transport_ready("ipfs", config=AppConfig(transport_modes={}), root=Path(tmp), status=status)
 
         self.assertEqual("unsupported", result.status)
         self.assertFalse(result.ready)
