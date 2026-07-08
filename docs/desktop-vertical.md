@@ -30,3 +30,15 @@ The first transport target is Tor through an AMPB-owned Arti/Tor runtime. The de
 vertical is not complete until AMPB can start the runtime, verify the SOCKS endpoint, and
 launch the bundled browser profile without clearnet fallback. I2P and Reticulum use the
 same route, consent, state, and health-check model after Tor works.
+
+## Desktop Shell
+
+`ampbrowser shell <url>` is the first desktop shell bridge. It prepares the same open plan
+as `ampbrowser open`, renders first-use transport consent as a desktop dialog when a
+prompt is required, and then launches the bundled browser through the shared runner after
+approval. Use `--yes` for scripted verification without showing the dialog.
+
+```sh
+python3 -m ampbrowser shell http://example.onion/
+python3 -m ampbrowser shell http://example.onion/ --yes
+```

@@ -41,6 +41,8 @@ python3 -m ampbrowser plan gemini://wownero.org/
 python3 -m ampbrowser open https://wownero.org/
 python3 -m ampbrowser open http://example.onion/ --launch
 python3 -m ampbrowser open http://example.onion/ --yes --launch
+python3 -m ampbrowser shell http://example.onion/
+python3 -m ampbrowser shell http://example.onion/ --yes
 python3 -m ampbrowser open http://example.b32.i2p/ --yes
 python3 -m ampbrowser transport start tor
 python3 -m ampbrowser transport status tor

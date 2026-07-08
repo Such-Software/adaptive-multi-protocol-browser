@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import replace
 from pathlib import Path
 import shlex
 import sys
 
 from .config import load_config
+from .desktop_shell import launch_desktop_shell
 from .docsgen import generate_docs
 from .fixtures import check_fixture_manifest
-from .launch import execute_open, prepare_open
+from .launch import prepare_open
+from .open_runner import launch_open_plan
 from .plan import plan_url
 from .platforms import PLATFORM_CHOICES
 from .routing import route_url
@@ -51,6 +52,15 @@ def main(argv: list[str] | None = None) -> int:
         help="Create the isolated profile and launch the bundled browser when the route is ready.",
     )
 
+    shell_parser = subcommands.add_parser("shell", help="Launch the desktop shell flow.")
+    shell_parser.add_argument("url")
+    shell_parser.add_argument("--config", type=Path, help="Path to an AMPB config file.")
+    shell_parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="Approve first-use setup without showing a prompt.",
+    )
+
     subcommands.add_parser("inspect", help="Inspect local transport readiness.")
 
     transport_parser = subcommands.add_parser("transport", help="Manage AMPB-owned transports.")
@@ -90,6 +100,8 @@ def main(argv: list[str] | None = None) -> int:
                 config_path=args.config,
                 platform=args.platform,
             )
+        if args.command == "shell":
+            return _cmd_shell(args.url, approve=args.yes, config_path=args.config)
         if args.command == "inspect":
             return _cmd_inspect()
         if args.command == "transport":
@@ -154,26 +166,26 @@ def _cmd_open(
     config = load_config(Path.cwd(), config_path)
     open_plan = prepare_open(url, consent=consent, dry_run=dry_run, config=config, platform=platform)
     if launch:
-        if open_plan.status == "setup-approved":
-            transport_result = ensure_transport_ready(
-                open_plan.browse_plan.route.transport,
-                config=config,
-                root=Path.cwd(),
-                status=open_plan.browse_plan.status,
-            )
-            open_plan = replace(
-                open_plan,
-                dry_run=False,
-                status="ready" if transport_result.ready else transport_result.status,
-                message=transport_result.message,
-                transport_setup_status=transport_result.status,
-                transport_setup_provider=transport_result.provider,
-                transport_setup_owned=transport_result.owned,
-                transport_setup_pid=transport_result.pid,
-                transport_setup_endpoint=transport_result.endpoint,
-                transport_setup_message=transport_result.message,
-            )
-        open_plan = execute_open(open_plan, root=Path.cwd())
+        open_plan = launch_open_plan(open_plan, config=config, root=Path.cwd())
+    _print_open_plan("AMPBROWSER_OPEN", open_plan)
+    return 0
+
+
+def _cmd_shell(url: str, *, approve: bool, config_path: Path | None) -> int:
+    config = load_config(Path.cwd(), config_path)
+    result = launch_desktop_shell(url, config=config, root=Path.cwd(), auto_approve=approve)
+    _print_open_plan(
+        "AMPBROWSER_SHELL",
+        result.open_plan,
+        (
+            f"prompt_shown={str(result.prompt_shown).lower()}",
+            f"prompt_approved={str(result.prompt_approved).lower()}",
+        ),
+    )
+    return 0
+
+
+def _print_open_plan(prefix: str, open_plan, extra_fields: tuple[str, ...] = ()) -> None:
     browse_plan = open_plan.browse_plan
     setup_steps = "|".join(open_plan.setup_steps) if open_plan.setup_steps else "-"
     launch_spec = open_plan.launch_spec
@@ -181,8 +193,9 @@ def _cmd_open(
     runtime_path = launch_spec.runtime_path if launch_spec else "-"
     user_js_path = launch_spec.user_js_path if launch_spec else "-"
     message = _safe(open_plan.message)
+    extra = (" " + " ".join(extra_fields)) if extra_fields else ""
     print(
-        "AMPBROWSER_OPEN "
+        f"{prefix} "
         f"url={browse_plan.route.normalized} "
         f"transport={browse_plan.route.transport} "
         f"profile={browse_plan.route.profile} "
@@ -212,8 +225,8 @@ def _cmd_open(
         f"launch_command=\"{_safe(launch_command)}\" "
         f"setup_steps=\"{_safe(setup_steps)}\" "
         f"message=\"{message}\""
+        f"{extra}"
     )
-    return 0
 
 
 def _cmd_inspect() -> int:

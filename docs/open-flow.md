@@ -30,6 +30,10 @@ render those fields as the first-use popup. After approval, launch output includ
 `transport_setup_pid`, and `transport_setup_endpoint` so the shell can distinguish an
 adopted daemon from an AMPB-owned managed process.
 
+`ampbrowser shell <url>` is the desktop wrapper for this contract. It shows the prompt
+through a desktop dialog when possible, falls back to a terminal prompt when needed, and
+launches through the same transport runner after approval.
+
 ## Examples
 
 ```sh
@@ -41,4 +45,5 @@ python3 -m ampbrowser open http://example.b32.i2p/ --platform android
 python3 -m ampbrowser open https://wownero.org/ --launch
 python3 -m ampbrowser open http://example.onion/ --launch
 python3 -m ampbrowser open http://example.onion/ --yes --launch
+python3 -m ampbrowser shell http://example.onion/
 ```

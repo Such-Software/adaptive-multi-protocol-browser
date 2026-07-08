@@ -8,6 +8,9 @@ import unittest
 from unittest.mock import patch
 
 from ampbrowser.cli import main
+from ampbrowser.config import AppConfig
+from ampbrowser.desktop_shell import DesktopShellResult
+from ampbrowser.launch import prepare_open
 from ampbrowser.transport_manager import ManagedTransportResult
 from ampbrowser.transports import TransportStatus
 
@@ -25,7 +28,7 @@ class CliOpenTest(unittest.TestCase):
         )
 
         with patch("ampbrowser.plan.inspect_transport", return_value=status):
-            with patch("ampbrowser.cli.ensure_transport_ready") as ensure_transport_ready:
+            with patch("ampbrowser.open_runner.ensure_transport_ready") as ensure_transport_ready:
                 with patch.object(sys, "stdout", new_callable=io.StringIO) as stdout:
                     code = main(["open", "http://example.onion/", "--launch"])
 
@@ -69,8 +72,8 @@ class CliOpenTest(unittest.TestCase):
             )
 
         with patch("ampbrowser.plan.inspect_transport", return_value=status):
-            with patch("ampbrowser.cli.ensure_transport_ready", return_value=transport_result) as ensure_transport_ready:
-                with patch("ampbrowser.cli.execute_open", side_effect=fake_execute) as execute_open:
+            with patch("ampbrowser.open_runner.ensure_transport_ready", return_value=transport_result) as ensure_transport_ready:
+                with patch("ampbrowser.open_runner.execute_open", side_effect=fake_execute) as execute_open:
                     with patch.object(sys, "stdout", new_callable=io.StringIO) as stdout:
                         code = main(["open", "http://example.onion/", "--yes", "--launch"])
 
@@ -85,6 +88,23 @@ class CliOpenTest(unittest.TestCase):
         self.assertIn("transport_setup_owned=true", output)
         self.assertIn("transport_setup_pid=1234", output)
         self.assertIn("transport_setup_endpoint=socks5://127.0.0.1:9050", output)
+
+    def test_shell_command_prints_desktop_shell_result(self) -> None:
+        config = AppConfig(runtime_path="/opt/ampb/firefox", transport_modes={})
+        open_plan = prepare_open("https://wownero.org/", config=config)
+        result = DesktopShellResult(open_plan=open_plan, prompt_shown=False, prompt_approved=False)
+
+        with patch("ampbrowser.cli.launch_desktop_shell", return_value=result) as shell:
+            with patch.object(sys, "stdout", new_callable=io.StringIO) as stdout:
+                code = main(["shell", "https://wownero.org/"])
+
+        self.assertEqual(0, code)
+        shell.assert_called_once()
+        output = stdout.getvalue()
+        self.assertIn("AMPBROWSER_SHELL", output)
+        self.assertIn("status=ready", output)
+        self.assertIn("prompt_shown=false", output)
+        self.assertIn("prompt_approved=false", output)
 
 
 if __name__ == "__main__":
