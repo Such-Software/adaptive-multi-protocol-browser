@@ -26,6 +26,7 @@ class TransportManagerTest(unittest.TestCase):
             result = ensure_transport_ready("tor", config=AppConfig(transport_modes={}), root=Path(tmp), status=status)
 
         self.assertEqual("ready", result.status)
+        self.assertEqual("-", result.provider)
         self.assertFalse(result.owned)
         self.assertTrue(result.ready)
         self.assertEqual(0, result.pid)
@@ -43,13 +44,46 @@ class TransportManagerTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             with patch("ampbrowser.transport_manager.shutil.which", return_value=None):
-                result = ensure_transport_ready("tor", config=AppConfig(transport_modes={}), root=Path(tmp), status=status)
+                with patch("ampbrowser.transport_manager._bundled_arti_path", return_value=""):
+                    result = ensure_transport_ready("tor", config=AppConfig(transport_modes={}), root=Path(tmp), status=status)
 
         self.assertEqual("missing-provider", result.status)
         self.assertFalse(result.ready)
         self.assertIn("Tor provider not found", result.message)
 
-    def test_starts_configured_tor_provider_with_ampb_state(self) -> None:
+    def test_starts_bundled_arti_provider_with_ampb_state(self) -> None:
+        status = TransportStatus(
+            transport="tor",
+            installed=True,
+            running=False,
+            endpoint="socks5://127.0.0.1:9050",
+            adoptable=False,
+            manage_supported=True,
+            note="Tor SOCKS proxy",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            arti = root / "providers/arti/bin/arti"
+            with patch("ampbrowser.transport_manager._wait_for_endpoint", return_value=True):
+                with patch("ampbrowser.transport_manager.subprocess.Popen") as popen:
+                    with patch("ampbrowser.transport_manager._bundled_arti_path", return_value=str(arti)):
+                        popen.return_value.pid = 1234
+                        result = ensure_transport_ready("tor", config=AppConfig(transport_modes={}), root=root, status=status)
+
+        self.assertEqual("started", result.status)
+        self.assertEqual("arti", result.provider)
+        self.assertTrue(result.owned)
+        self.assertEqual(1234, result.pid)
+        self.assertEqual(str(root / ".ampb/transports/tor"), result.state_dir)
+        self.assertEqual(str(arti), result.command[0])
+        self.assertIn("proxy", result.command)
+        self.assertIn("-p", result.command)
+        self.assertIn('storage.state_dir="' + str(root / ".ampb/transports/tor/arti-state") + '"', result.command)
+        self.assertIn('storage.cache_dir="' + str(root / ".ampb/transports/tor/arti-cache") + '"', result.command)
+        popen.assert_called_once()
+
+    def test_starts_configured_classic_tor_provider_with_ampb_state(self) -> None:
         status = TransportStatus(
             transport="tor",
             installed=True,
@@ -65,16 +99,18 @@ class TransportManagerTest(unittest.TestCase):
             root = Path(tmp)
             with patch("ampbrowser.transport_manager._wait_for_endpoint", return_value=True):
                 with patch("ampbrowser.transport_manager.subprocess.Popen") as popen:
-                    popen.return_value.pid = 1234
-                    result = ensure_transport_ready("tor", config=config, root=root, status=status)
+                    with patch("ampbrowser.transport_manager._bundled_arti_path", return_value=""):
+                        popen.return_value.pid = 1234
+                        result = ensure_transport_ready("tor", config=config, root=root, status=status)
 
         self.assertEqual("started", result.status)
+        self.assertEqual("tor", result.provider)
         self.assertTrue(result.owned)
         self.assertEqual(1234, result.pid)
         self.assertEqual(str(root / ".ampb/transports/tor"), result.state_dir)
         self.assertEqual("/opt/ampb/tor", result.command[0])
         self.assertIn("--DataDirectory", result.command)
-        self.assertIn(str(root / ".ampb/transports/tor/data"), result.command)
+        self.assertIn(str(root / ".ampb/transports/tor/tor-data"), result.command)
         popen.assert_called_once()
 
     def test_reports_tor_spawn_failure(self) -> None:
@@ -90,10 +126,12 @@ class TransportManagerTest(unittest.TestCase):
         config = AppConfig(transport_modes={}, transport_binaries={"tor": "/opt/ampb/tor"})
 
         with tempfile.TemporaryDirectory() as tmp:
-            with patch("ampbrowser.transport_manager.subprocess.Popen", side_effect=OSError("nope")):
-                result = ensure_transport_ready("tor", config=config, root=Path(tmp), status=status)
+            with patch("ampbrowser.transport_manager._bundled_arti_path", return_value=""):
+                with patch("ampbrowser.transport_manager.subprocess.Popen", side_effect=OSError("nope")):
+                    result = ensure_transport_ready("tor", config=config, root=Path(tmp), status=status)
 
         self.assertEqual("start-failed", result.status)
+        self.assertEqual("tor", result.provider)
         self.assertFalse(result.ready)
         self.assertIn("could not start", result.message)
 
@@ -112,8 +150,9 @@ class TransportManagerTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             with patch("ampbrowser.transport_manager._wait_for_endpoint", return_value=False):
                 with patch("ampbrowser.transport_manager.subprocess.Popen") as popen:
-                    popen.return_value.pid = 1234
-                    result = ensure_transport_ready("tor", config=config, root=Path(tmp), status=status)
+                    with patch("ampbrowser.transport_manager._bundled_arti_path", return_value=""):
+                        popen.return_value.pid = 1234
+                        result = ensure_transport_ready("tor", config=config, root=Path(tmp), status=status)
 
         self.assertEqual("start-timeout", result.status)
         self.assertFalse(result.ready)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 from pathlib import Path
 import os
 import shutil
@@ -13,9 +14,19 @@ from .adapters import TransportStatus, adapter_for
 from .config import AppConfig
 
 
+ARTI_RELATIVE_PATH = Path("providers/arti/bin/arti")
+
+
+@dataclass(frozen=True)
+class TorProvider:
+    kind: str
+    binary: str
+
+
 @dataclass(frozen=True)
 class ManagedTransportResult:
     transport: str
+    provider: str
     status: str
     endpoint: str
     owned: bool
@@ -39,12 +50,13 @@ def ensure_transport_ready(
 ) -> ManagedTransportResult:
     adapter = adapter_for(transport)
     if adapter is None:
-        return ManagedTransportResult(transport, "unsupported", "-", False, 0, "-", (), "transport adapter not found")
+        return ManagedTransportResult(transport, "-", "unsupported", "-", False, 0, "-", (), "transport adapter not found")
 
     status = status or adapter.inspect()
     if status.adoptable:
         return ManagedTransportResult(
             transport,
+            "-",
             "ready",
             status.endpoint,
             False,
@@ -57,6 +69,7 @@ def ensure_transport_ready(
     if transport != "tor":
         return ManagedTransportResult(
             transport,
+            "-",
             "unsupported",
             status.endpoint,
             False,
@@ -76,28 +89,130 @@ def _start_tor(
     endpoint: str,
     wait_seconds: float,
 ) -> ManagedTransportResult:
-    binary = _transport_binary(config, "tor")
+    provider = _tor_provider(config)
     state_dir = _managed_state_dir(root, config, "tor")
-    if not binary:
+    if not provider:
         return ManagedTransportResult(
             "tor",
+            "-",
             "missing-provider",
             endpoint,
             False,
             0,
             state_dir,
             (),
-            "Tor provider not found; set AMPB_TOR_BIN or transports.tor.binary_path",
+            "Tor provider not found; run tools/browser-tor-provider-build.sh or set AMPB_ARTI_BIN, AMPB_TOR_BIN, or transports.tor.binary_path",
         )
 
     state_path = Path(state_dir)
-    data_dir = state_path / "data"
-    log_path = state_path / "tor.log"
-    data_dir.mkdir(parents=True, exist_ok=True)
+    state_path.mkdir(parents=True, exist_ok=True)
+    _chmod_private(state_path)
 
+    command = _tor_command(provider, endpoint=endpoint, state_path=state_path)
+    try:
+        with (state_path / f"{provider.kind}.log").open("ab") as log_file:
+            process = subprocess.Popen(command, stdout=log_file, stderr=log_file, start_new_session=True)  # noqa: S603
+    except OSError as exc:
+        return ManagedTransportResult(
+            "tor",
+            provider.kind,
+            "start-failed",
+            endpoint,
+            False,
+            0,
+            state_dir,
+            command,
+            f"managed {provider.kind} could not start: {exc}",
+        )
+
+    if _wait_for_endpoint(endpoint, timeout_seconds=wait_seconds):
+        return ManagedTransportResult(
+            "tor",
+            provider.kind,
+            "started",
+            endpoint,
+            True,
+            process.pid,
+            state_dir,
+            command,
+            f"started managed {provider.kind} transport",
+        )
+
+    process.terminate()
+    return ManagedTransportResult(
+        "tor",
+        provider.kind,
+        "start-timeout",
+        endpoint,
+        True,
+        process.pid,
+        state_dir,
+        command,
+        f"managed {provider.kind} did not become ready at {endpoint}",
+    )
+
+
+def _tor_provider(config: AppConfig) -> TorProvider | None:
+    arti_path = os.environ.get("AMPB_ARTI_BIN") or _bundled_arti_path()
+    if arti_path:
+        return TorProvider("arti", arti_path)
+
+    tor_path = os.environ.get("AMPB_TOR_BIN")
+    if tor_path:
+        return TorProvider("tor", tor_path)
+
+    config_path = config.transport_binary("tor")
+    if config_path:
+        return TorProvider(_infer_provider_kind(config_path), config_path)
+
+    system_tor = shutil.which("tor")
+    if system_tor:
+        return TorProvider("tor", system_tor)
+    return None
+
+
+def _bundled_arti_path() -> str:
+    build_root = Path(os.environ.get("AMPB_BROWSER_BUILD_ROOT", "/tmp/ampb-browser-build"))
+    candidate = build_root / ARTI_RELATIVE_PATH
+    if candidate.exists() and candidate.is_file():
+        return str(candidate)
+    return ""
+
+
+def _infer_provider_kind(binary_path: str) -> str:
+    name = Path(binary_path).name.lower()
+    if name.startswith("arti"):
+        return "arti"
+    return "tor"
+
+
+def _tor_command(provider: TorProvider, *, endpoint: str, state_path: Path) -> tuple[str, ...]:
     host, port = _endpoint_host_port(endpoint)
-    command = (
-        binary,
+    if provider.kind == "arti":
+        state_dir = state_path / "arti-state"
+        cache_dir = state_path / "arti-cache"
+        state_dir.mkdir(parents=True, exist_ok=True)
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        _chmod_private(state_dir)
+        _chmod_private(cache_dir)
+        return (
+            provider.binary,
+            "proxy",
+            "-p",
+            str(port),
+            "-o",
+            f"storage.state_dir={json.dumps(str(state_dir))}",
+            "-o",
+            f"storage.cache_dir={json.dumps(str(cache_dir))}",
+            "-l",
+            "warn",
+        )
+
+    data_dir = state_path / "tor-data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    _chmod_private(data_dir)
+    return (
+        provider.binary,
         "--SocksPort",
         f"{host}:{port}",
         "--DataDirectory",
@@ -105,62 +220,19 @@ def _start_tor(
         "--ClientOnly",
         "1",
         "--Log",
-        f"notice file {log_path}",
+        f"notice file {state_path / 'tor.log'}",
     )
-    try:
-        process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)  # noqa: S603
-    except OSError as exc:
-        return ManagedTransportResult(
-            "tor",
-            "start-failed",
-            endpoint,
-            False,
-            0,
-            state_dir,
-            command,
-            f"managed Tor could not start: {exc}",
-        )
-
-    if _wait_for_endpoint(endpoint, timeout_seconds=wait_seconds):
-        return ManagedTransportResult(
-            "tor",
-            "started",
-            endpoint,
-            True,
-            process.pid,
-            state_dir,
-            command,
-            "started managed Tor transport",
-        )
-
-    process.terminate()
-    return ManagedTransportResult(
-        "tor",
-        "start-timeout",
-        endpoint,
-        True,
-        process.pid,
-        state_dir,
-        command,
-        f"managed Tor did not become ready at {endpoint}",
-    )
-
-
-def _transport_binary(config: AppConfig, transport: str) -> str:
-    env_name = f"AMPB_{transport.upper()}_BIN"
-    env_path = os.environ.get(env_name)
-    if env_path:
-        return env_path
-    config_path = config.transport_binary(transport)
-    if config_path:
-        return config_path
-    if transport == "tor":
-        return shutil.which("tor") or ""
-    return ""
 
 
 def _managed_state_dir(root: Path, config: AppConfig, transport: str) -> str:
     return str(root / config.state_dir / "transports" / transport)
+
+
+def _chmod_private(path: Path) -> None:
+    try:
+        path.chmod(0o700)
+    except OSError:
+        pass
 
 
 def _wait_for_endpoint(endpoint: str, *, timeout_seconds: float) -> bool:

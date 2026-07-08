@@ -76,6 +76,24 @@ A successful source build produces a bundled app at
 Configure and build modes may install Mozilla build Python helpers such as `zstandard`
 into mach virtualenvs under `/tmp/ampb-browser-build/cache/mozbuild`.
 
+## Tor Provider Probe
+
+Build a local Arti provider for managed Tor startup:
+
+```sh
+sh tools/browser-tor-provider-build.sh
+```
+
+The provider script keeps Cargo output and the installed Arti binary under the external
+workspace:
+
+- `/tmp/ampb-browser-build/providers/arti/bin/arti`
+- `/tmp/ampb-browser-build/logs/arti-cargo-install.log`
+
+`ampbrowser open <onion-url> --yes --launch` will prefer this local Arti provider, then
+`AMPB_ARTI_BIN`, `AMPB_TOR_BIN`, configured `transports.tor.binary_path`, and finally a
+system `tor` binary if one is present.
+
 ## Source Plan
 
 Print the canonical source targets and paths:

@@ -34,6 +34,7 @@ class OpenPlan:
     message: str
     launch_spec: BrowserLaunchSpec | None = None
     transport_setup_status: str = "-"
+    transport_setup_provider: str = "-"
     transport_setup_message: str = "-"
 
 

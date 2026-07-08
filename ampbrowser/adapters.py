@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
+from pathlib import Path
 import shutil
 import socket
 
@@ -34,7 +36,7 @@ class TransportAdapter:
     manage_supported: bool = True
 
     def inspect(self) -> TransportStatus:
-        installed = self.builtin_running or any(shutil.which(command) for command in self.commands)
+        installed = self.builtin_running or any(_command_available(command) for command in self.commands)
         running = self.builtin_running or (
             bool(self.connect_host) and bool(self.connect_port) and _can_connect(self.connect_host, self.connect_port)
         )
@@ -84,7 +86,7 @@ ADAPTERS: dict[str, TransportAdapter] = {
         start_strategy="start managed Arti SOCKS proxy",
         stop_policy="stop only AMPB-owned Tor daemon",
         note="Tor via existing SOCKS proxy or managed Arti/Tor runtime",
-        commands=("arti", "tor"),
+        commands=("ampb-bundled-arti", "arti", "tor"),
         connect_host="127.0.0.1",
         connect_port=9050,
     ),
@@ -146,6 +148,16 @@ ADAPTERS: dict[str, TransportAdapter] = {
 
 def adapter_for(name: str) -> TransportAdapter | None:
     return ADAPTERS.get(name)
+
+
+def _command_available(command: str) -> bool:
+    if command == "ampb-bundled-arti":
+        path = Path(os.environ.get("AMPB_BROWSER_BUILD_ROOT", "/tmp/ampb-browser-build")) / "providers/arti/bin/arti"
+        return path.exists() and path.is_file()
+    if "/" in command:
+        path = Path(command)
+        return path.exists() and path.is_file()
+    return bool(shutil.which(command))
 
 
 def _can_connect(host: str, port: int) -> bool:

@@ -153,6 +153,7 @@ def _cmd_open(
                 status="ready" if transport_result.ready else transport_result.status,
                 message=transport_result.message,
                 transport_setup_status=transport_result.status,
+                transport_setup_provider=transport_result.provider,
                 transport_setup_message=transport_result.message,
             )
         open_plan = execute_open(open_plan, root=Path.cwd())
@@ -181,6 +182,7 @@ def _cmd_open(
         f"runtime_path={runtime_path} "
         f"user_js_path={user_js_path} "
         f"transport_setup_status={open_plan.transport_setup_status} "
+        f"transport_setup_provider={open_plan.transport_setup_provider} "
         f"transport_setup_message=\"{_safe(open_plan.transport_setup_message)}\" "
         f"launch_command=\"{_safe(launch_command)}\" "
         f"setup_steps=\"{_safe(setup_steps)}\" "
