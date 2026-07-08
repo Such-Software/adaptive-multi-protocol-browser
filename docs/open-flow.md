@@ -34,6 +34,12 @@ adopted daemon from an AMPB-owned managed process.
 through a desktop dialog when possible, falls back to a terminal prompt when needed, and
 launches through the same transport runner after approval.
 
+`ampbrowser open <url> --route-aware --launch` creates one desktop profile for clearnet,
+Tor, and I2P. The profile uses a PAC file for `.onion` and `.i2p` routing, installs the
+AMPB route-helper extension, and starts a loopback AMPB helper. If a user clicks an
+alternate-network link before its local transport is ready, the extension shows a setup
+page and asks the helper to start the AMPB-managed transport after approval.
+
 ## Examples
 
 ```sh
@@ -43,6 +49,7 @@ python3 -m ampbrowser open http://example.b32.i2p/ --yes
 python3 -m ampbrowser open http://example.b32.i2p/ --config examples/config.toml
 python3 -m ampbrowser open http://example.b32.i2p/ --platform android
 python3 -m ampbrowser open https://wownero.org/ --launch
+python3 -m ampbrowser open https://ampgateway.site/ --route-aware --launch
 python3 -m ampbrowser open http://example.onion/ --launch
 python3 -m ampbrowser open http://example.onion/ --yes --launch
 python3 -m ampbrowser shell http://example.onion/

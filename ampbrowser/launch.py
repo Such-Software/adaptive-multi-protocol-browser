@@ -5,8 +5,11 @@ from dataclasses import replace
 import json
 import os
 from pathlib import Path
+import secrets
 import shlex
+import socket
 import subprocess
+import sys
 from urllib.parse import urlparse
 
 from .adapters import adapter_for
@@ -16,7 +19,26 @@ from .plan import BrowsePlan, plan_url
 
 ROUTE_AWARE_PROFILE = "route-aware"
 ROUTE_AWARE_PAC_NAME = "ampb-proxy.pac"
+ROUTE_HELPER_EXTENSION_ID = "ampb-route-helper@such.software"
 PAC_URL_PLACEHOLDER = "__AMPB_ROUTE_AWARE_PAC_URL__"
+HELPER_URL_PLACEHOLDER = "__AMPB_ROUTE_HELPER_URL__"
+HELPER_TOKEN_PLACEHOLDER = "__AMPB_ROUTE_HELPER_TOKEN__"
+
+
+@dataclass(frozen=True)
+class ProfileAsset:
+    path: str
+    content: str
+
+
+@dataclass(frozen=True)
+class RouteHelperLaunch:
+    status: str
+    endpoint: str = "-"
+    token: str = "-"
+    pid: int = 0
+    command: tuple[str, ...] = ()
+    message: str = "-"
 
 
 @dataclass(frozen=True)
@@ -29,6 +51,8 @@ class BrowserLaunchSpec:
     route_aware: bool = False
     pac_path: str = "-"
     pac_content: str = ""
+    extension_path: str = "-"
+    extension_assets: tuple[ProfileAsset, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -54,6 +78,10 @@ class OpenPlan:
     transport_setup_pid: int = 0
     transport_setup_endpoint: str = "-"
     transport_setup_message: str = "-"
+    route_helper_status: str = "-"
+    route_helper_endpoint: str = "-"
+    route_helper_pid: int = 0
+    route_helper_message: str = "-"
 
 
 def prepare_open(
@@ -163,9 +191,23 @@ def execute_open(open_plan: OpenPlan, *, root: Path | None = None) -> OpenPlan:
             message=f"browser runtime not found: {spec.runtime_path}",
         )
 
-    _write_profile(root, spec)
+    route_helper = _start_route_helper(root) if spec.route_aware else RouteHelperLaunch("disabled")
+    _write_profile(root, spec, route_helper=route_helper)
     process = subprocess.Popen(spec.command, cwd=str(root))  # noqa: S603
-    return replace(open_plan, dry_run=False, status="launched", browser_pid=process.pid, message="launched bundled browser")
+    message = "launched bundled browser"
+    if spec.route_aware:
+        message = f"launched bundled browser with route helper {route_helper.status}"
+    return replace(
+        open_plan,
+        dry_run=False,
+        status="launched",
+        browser_pid=process.pid,
+        message=message,
+        route_helper_status=route_helper.status,
+        route_helper_endpoint=route_helper.endpoint,
+        route_helper_pid=route_helper.pid,
+        route_helper_message=route_helper.message,
+    )
 
 
 def _proxy_for(browse_plan: BrowsePlan) -> str:
@@ -266,6 +308,8 @@ def _launch_spec_for(
     prefs = _prefs_for(browse_plan, route_aware=route_aware)
     pac_path = str(Path(profile_path) / ROUTE_AWARE_PAC_NAME) if route_aware else "-"
     pac_content = _route_aware_pac() if route_aware else ""
+    extension_path = str(Path(profile_path) / "extensions" / ROUTE_HELPER_EXTENSION_ID) if route_aware else "-"
+    extension_assets = _route_helper_extension_assets(extension_path) if route_aware else ()
     return BrowserLaunchSpec(
         runtime_path=runtime_path,
         profile_path=profile_path,
@@ -275,6 +319,8 @@ def _launch_spec_for(
         route_aware=route_aware,
         pac_path=pac_path,
         pac_content=pac_content,
+        extension_path=extension_path,
+        extension_assets=extension_assets,
     )
 
 
@@ -317,6 +363,9 @@ def _prefs_for(browse_plan: BrowsePlan, *, route_aware: bool = False) -> tuple[s
                 ("network.proxy.failover_direct", False),
                 ("network.proxy.socks_remote_dns", True),
                 ("network.proxy.no_proxies_on", ""),
+                ("extensions.autoDisableScopes", 0),
+                ("extensions.enabledScopes", 5),
+                ("xpinstall.signatures.required", False),
             ]
         )
         return tuple(_format_pref(name, value) for name, value in prefs)
@@ -398,6 +447,177 @@ def _pac_proxy_for_endpoint(proxy_type: str, endpoint: str) -> str:
     return f"{proxy_type} {host}:{port}"
 
 
+def _route_helper_extension_assets(extension_path: str) -> tuple[ProfileAsset, ...]:
+    base = Path(extension_path)
+    return (
+        ProfileAsset(str(base / "manifest.json"), _route_helper_manifest()),
+        ProfileAsset(str(base / "background.js"), _route_helper_background_js()),
+        ProfileAsset(str(base / "setup.html"), _route_helper_setup_html()),
+        ProfileAsset(str(base / "setup.js"), _route_helper_setup_js()),
+        ProfileAsset(str(base / "setup.css"), _route_helper_setup_css()),
+    )
+
+
+def _route_helper_manifest() -> str:
+    return json.dumps(
+        {
+            "manifest_version": 2,
+            "name": "AMPB Route Helper",
+            "version": "0.1.0",
+            "description": "Starts AMPB-managed transports when alternate-network links are opened.",
+            "applications": {"gecko": {"id": ROUTE_HELPER_EXTENSION_ID}},
+            "permissions": [
+                "tabs",
+                "webNavigation",
+                "http://127.0.0.1/*",
+            ],
+            "background": {"scripts": ["background.js"]},
+        },
+        indent=2,
+        sort_keys=True,
+    ) + "\n"
+
+
+def _route_helper_background_js() -> str:
+    return "\n".join(
+        (
+            '"use strict";',
+            "",
+            f'const HELPER_URL = "{HELPER_URL_PLACEHOLDER}";',
+            f'const HELPER_TOKEN = "{HELPER_TOKEN_PLACEHOLDER}";',
+            "const pendingByTab = new Map();",
+            "",
+            "function transportForUrl(rawUrl) {",
+            "  try {",
+            "    const parsed = new URL(rawUrl);",
+            "    const host = parsed.hostname.toLowerCase().replace(/\\.$/, '');",
+            "    if (host.endsWith('.onion')) return 'tor';",
+            "    if (host.endsWith('.i2p')) return 'i2p';",
+            "  } catch (_error) {}",
+            "  return '';",
+            "}",
+            "",
+            "async function helper(action, transport, url) {",
+            "  const response = await fetch(HELPER_URL, {",
+            "    method: 'POST',",
+            "    headers: {",
+            "      'Content-Type': 'application/json',",
+            "      'X-AMPB-Token': HELPER_TOKEN,",
+            "    },",
+            "    body: JSON.stringify({ action, transport, url }),",
+            "  });",
+            "  return response.json();",
+            "}",
+            "",
+            "async function handleNavigate(details) {",
+            "  if (details.frameId !== 0) return;",
+            "  const transport = transportForUrl(details.url);",
+            "  if (!transport) return;",
+            "  const key = `${details.tabId}:${details.url}`;",
+            "  if (pendingByTab.get(details.tabId) === details.url) return;",
+            "  let status;",
+            "  try {",
+            "    status = await helper('status', transport, details.url);",
+            "  } catch (error) {",
+            "    status = { ok: false, ready: false, message: String(error) };",
+            "  }",
+            "  if (status.ready) return;",
+            "  pendingByTab.set(details.tabId, details.url);",
+            "  const setupUrl = browser.runtime.getURL(",
+            "    `setup.html?transport=${encodeURIComponent(transport)}&url=${encodeURIComponent(details.url)}&message=${encodeURIComponent(status.message || '')}`",
+            "  );",
+            "  await browser.tabs.update(details.tabId, { url: setupUrl });",
+            "}",
+            "",
+            "browser.webNavigation.onBeforeNavigate.addListener(handleNavigate);",
+            "",
+            "browser.runtime.onMessage.addListener((message) => {",
+            "  if (!message || message.type !== 'ampb-ensure') return false;",
+            "  return helper('ensure', message.transport, message.url);",
+            "});",
+            "",
+        )
+    )
+
+
+def _route_helper_setup_html() -> str:
+    return "\n".join(
+        (
+            "<!doctype html>",
+            '<html lang="en">',
+            "<head>",
+            '  <meta charset="utf-8">',
+            '  <meta name="viewport" content="width=device-width, initial-scale=1">',
+            "  <title>Set Up Transport</title>",
+            '  <link rel="stylesheet" href="setup.css">',
+            "</head>",
+            "<body>",
+            '  <main class="panel">',
+            '    <p class="eyebrow">AMPB Route Helper</p>',
+            '    <h1 id="title">Set Up Transport</h1>',
+            '    <p id="body">AMPB needs to start a local transport before opening this route.</p>',
+            '    <pre id="url"></pre>',
+            '    <p id="message" class="message"></p>',
+            '    <button id="approve" type="button">Start and open</button>',
+            '    <p id="status" class="status"></p>',
+            "  </main>",
+            '  <script src="setup.js"></script>',
+            "</body>",
+            "</html>",
+            "",
+        )
+    )
+
+
+def _route_helper_setup_js() -> str:
+    return "\n".join(
+        (
+            '"use strict";',
+            "",
+            "const params = new URLSearchParams(window.location.search);",
+            "const transport = params.get('transport') || '';",
+            "const url = params.get('url') || '';",
+            "const message = params.get('message') || '';",
+            "const label = transport === 'tor' ? 'Tor' : transport === 'i2p' ? 'I2P' : transport;",
+            "",
+            "document.getElementById('title').textContent = `Set up ${label}?`;",
+            "document.getElementById('body').textContent = `AMPB can start a managed ${label} session and keep its state isolated.`;",
+            "document.getElementById('url').textContent = url;",
+            "document.getElementById('message').textContent = message;",
+            "document.getElementById('approve').textContent = `Start ${label} and open`;",
+            "",
+            "document.getElementById('approve').addEventListener('click', async () => {",
+            "  const status = document.getElementById('status');",
+            "  status.textContent = `Starting ${label}...`;",
+            "  const result = await browser.runtime.sendMessage({ type: 'ampb-ensure', transport, url });",
+            "  if (result && result.ready) {",
+            "    status.textContent = `${label} is ready. Opening route...`;",
+            "    window.location.href = url;",
+            "    return;",
+            "  }",
+            "  status.textContent = (result && result.message) || `${label} did not become ready.`;",
+            "});",
+            "",
+        )
+    )
+
+
+def _route_helper_setup_css() -> str:
+    return "\n".join(
+        (
+            ":root { color-scheme: light dark; font-family: system-ui, sans-serif; }",
+            "body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #111; color: #f7f1e8; }",
+            ".panel { width: min(680px, calc(100vw - 32px)); }",
+            ".eyebrow { color: #36d1c4; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }",
+            "h1 { font-size: 2rem; margin: 0 0 12px; }",
+            "pre { white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; border: 1px solid #444; }",
+            "button { font: inherit; font-weight: 700; padding: 12px 16px; border: 0; background: #36d1c4; color: #111; }",
+            ".message, .status { color: #cfc7bb; }",
+            "",
+        )
+    )
+
+
 def _endpoint_host_port(endpoint: str) -> tuple[str, int]:
     parsed = urlparse(endpoint)
     return parsed.hostname or "127.0.0.1", parsed.port or 0
@@ -413,7 +633,38 @@ def _format_pref(name: str, value: str | int | bool) -> str:
     return f"user_pref({json.dumps(name)}, {literal});"
 
 
-def _write_profile(root: Path, spec: BrowserLaunchSpec) -> None:
+def _start_route_helper(root: Path) -> RouteHelperLaunch:
+    port = _free_loopback_port()
+    token = secrets.token_urlsafe(24)
+    endpoint = f"http://127.0.0.1:{port}/"
+    command = (
+        sys.executable,
+        "-m",
+        "ampbrowser",
+        "helper",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        str(port),
+        "--token",
+        token,
+        "--root",
+        str(root),
+    )
+    try:
+        process = subprocess.Popen(command, cwd=str(root), start_new_session=True)  # noqa: S603
+    except OSError as exc:
+        return RouteHelperLaunch("start-failed", endpoint=endpoint, token=token, command=command, message=str(exc))
+    return RouteHelperLaunch("started", endpoint=endpoint, token=token, pid=process.pid, command=command)
+
+
+def _free_loopback_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
+
+
+def _write_profile(root: Path, spec: BrowserLaunchSpec, *, route_helper: RouteHelperLaunch | None = None) -> None:
     profile_path = _path_from(root, spec.profile_path)
     profile_path.mkdir(parents=True, exist_ok=True)
     pac_url = "-"
@@ -422,6 +673,14 @@ def _write_profile(root: Path, spec: BrowserLaunchSpec) -> None:
         pac_path.parent.mkdir(parents=True, exist_ok=True)
         pac_path.write_text(spec.pac_content, encoding="utf-8")
         pac_url = pac_path.resolve().as_uri()
+    if spec.route_aware:
+        helper = route_helper or RouteHelperLaunch("disabled")
+        for asset in spec.extension_assets:
+            asset_path = _path_from(root, asset.path)
+            asset_path.parent.mkdir(parents=True, exist_ok=True)
+            content = asset.content.replace(HELPER_URL_PLACEHOLDER, helper.endpoint)
+            content = content.replace(HELPER_TOKEN_PLACEHOLDER, helper.token)
+            asset_path.write_text(content, encoding="utf-8")
     user_js_path = _path_from(root, spec.user_js_path)
     text = "// Managed by AMPB. Local browser profile policy.\n" + "\n".join(spec.prefs) + "\n"
     text = text.replace(PAC_URL_PLACEHOLDER, pac_url)

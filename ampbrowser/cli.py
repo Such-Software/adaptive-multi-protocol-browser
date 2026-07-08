@@ -13,6 +13,7 @@ from .launch import prepare_open
 from .open_runner import launch_open_plan
 from .plan import plan_url
 from .platforms import PLATFORM_CHOICES
+from .route_helper import serve_route_helper
 from .routing import route_url
 from .transport_manager import ensure_transport_ready, stop_managed_transport, transport_status
 from .transports import inspect_transports
@@ -90,6 +91,13 @@ def main(argv: list[str] | None = None) -> int:
     docs_generate = docs_subcommands.add_parser("generate", help="Generate docs from code.")
     docs_generate.add_argument("--check", action="store_true")
 
+    helper_parser = subcommands.add_parser("helper", help=argparse.SUPPRESS)
+    helper_parser.add_argument("--host", default="127.0.0.1")
+    helper_parser.add_argument("--port", type=int, required=True)
+    helper_parser.add_argument("--token", required=True)
+    helper_parser.add_argument("--root", type=Path, default=Path.cwd())
+    helper_parser.add_argument("--config", type=Path, help="Path to an AMPB config file.")
+
     args = parser.parse_args(argv)
     try:
         if args.command == "route":
@@ -116,6 +124,8 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_fixture(args)
         if args.command == "docs":
             return _cmd_docs(args)
+        if args.command == "helper":
+            return _cmd_helper(args)
     except Exception as exc:  # noqa: BLE001
         print(f"AMPBROWSER status=error message={exc}", file=sys.stderr)
         return 1
@@ -241,6 +251,10 @@ def _print_open_plan(prefix: str, open_plan, extra_fields: tuple[str, ...] = ())
         f"transport_setup_pid={open_plan.transport_setup_pid} "
         f"transport_setup_endpoint={open_plan.transport_setup_endpoint} "
         f"transport_setup_message=\"{_safe(open_plan.transport_setup_message)}\" "
+        f"route_helper_status={open_plan.route_helper_status} "
+        f"route_helper_endpoint={open_plan.route_helper_endpoint} "
+        f"route_helper_pid={open_plan.route_helper_pid} "
+        f"route_helper_message=\"{_safe(open_plan.route_helper_message)}\" "
         f"launch_command=\"{_safe(launch_command)}\" "
         f"setup_steps=\"{_safe(setup_steps)}\" "
         f"message=\"{message}\""
@@ -299,6 +313,17 @@ def _cmd_docs(args) -> int:
         print(f"AMPBROWSER_DOCS status=ok mode={mode} changed={changed_text}")
         return 0
     return 1
+
+
+def _cmd_helper(args) -> int:
+    serve_route_helper(
+        host=args.host,
+        port=args.port,
+        token=args.token,
+        root=args.root,
+        config_path=args.config,
+    )
+    return 0
 
 
 def _cmd_fixture(args) -> int:

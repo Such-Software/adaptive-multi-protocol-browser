@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 
 from ampbrowser.config import AppConfig
-from ampbrowser.launch import execute_open, prepare_open
+from ampbrowser.launch import RouteHelperLaunch, execute_open, prepare_open
 from ampbrowser.transports import TransportStatus
 
 
@@ -138,10 +138,15 @@ class PrepareOpenTest(unittest.TestCase):
             self.assertIn('user_pref("network.proxy.type", 2);', plan.launch_spec.prefs)
             self.assertIn("__AMPB_ROUTE_AWARE_PAC_URL__", "\n".join(plan.launch_spec.prefs))
 
-            with patch("ampbrowser.launch.subprocess.Popen") as popen:
-                launched = execute_open(plan, root=root)
+            helper = RouteHelperLaunch("started", endpoint="http://127.0.0.1:44001/", token="test-token", pid=4321)
+            with patch("ampbrowser.launch._start_route_helper", return_value=helper):
+                with patch("ampbrowser.launch.subprocess.Popen") as popen:
+                    launched = execute_open(plan, root=root)
 
             self.assertEqual("launched", launched.status)
+            self.assertEqual("started", launched.route_helper_status)
+            self.assertEqual("http://127.0.0.1:44001/", launched.route_helper_endpoint)
+            self.assertEqual(4321, launched.route_helper_pid)
             popen.assert_called_once_with(
                 (str(runtime), "-no-remote", "-profile", ".ampb/profiles/route-aware", "https://ampgateway.site/"),
                 cwd=str(root),
@@ -156,6 +161,14 @@ class PrepareOpenTest(unittest.TestCase):
             self.assertIn('hasSuffix(h, ".i2p")', pac)
             self.assertIn('return "PROXY 127.0.0.1:4444";', pac)
             self.assertIn('return "DIRECT";', pac)
+            extension = profile / "extensions/ampb-route-helper@such.software"
+            manifest = (extension / "manifest.json").read_text(encoding="utf-8")
+            background = (extension / "background.js").read_text(encoding="utf-8")
+            setup = (extension / "setup.html").read_text(encoding="utf-8")
+            self.assertIn("webNavigation", manifest)
+            self.assertIn("http://127.0.0.1:44001/", background)
+            self.assertIn("test-token", background)
+            self.assertIn("Set Up Transport", setup)
 
     def test_execute_open_blocks_when_runtime_is_missing(self) -> None:
         config = AppConfig(runtime_path="/missing/ampb/firefox", transport_modes={})

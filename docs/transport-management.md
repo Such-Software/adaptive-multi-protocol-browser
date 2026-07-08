@@ -17,6 +17,11 @@ state before launching. Transport policy comes from `.ampb/config.toml` or an ex
 launching a browser. It records only AMPB-owned processes and refuses to stop adopted
 user or system daemons.
 
+Route-aware desktop launches add a local helper process for in-browser setup prompts. The
+helper accepts token-gated loopback requests from the AMPB profile extension, reports
+transport status, and starts only supported AMPB-managed transports. It does not expose a
+public network listener or manage adopted daemons.
+
 ## Lifecycle
 
 1. Inspect known local endpoints.
