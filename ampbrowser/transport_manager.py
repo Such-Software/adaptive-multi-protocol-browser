@@ -395,7 +395,8 @@ def _start_i2p(
             0,
             state_dir,
             (),
-            "I2P provider not found; install i2pd or set AMPB_I2PD_BIN or transports.i2p.binary_path",
+            "I2P provider not found; on macOS run: brew install i2pd. "
+            "Alternatively set AMPB_I2PD_BIN or transports.i2p.binary_path.",
         )
 
     state_path = Path(state_dir)
@@ -460,7 +461,35 @@ def _i2p_provider(config: AppConfig) -> I2PProvider | None:
     system_i2pd = shutil.which("i2pd")
     if system_i2pd:
         return I2PProvider("i2pd", system_i2pd)
+
+    homebrew_i2pd = _homebrew_i2pd_path()
+    if homebrew_i2pd:
+        return I2PProvider("i2pd", homebrew_i2pd)
     return None
+
+
+def _homebrew_i2pd_path() -> str:
+    brew = shutil.which("brew")
+    if not brew:
+        return ""
+    try:
+        result = subprocess.run(
+            [brew, "--prefix", "i2pd"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=2,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    if result.returncode != 0:
+        return ""
+    prefix = Path(result.stdout.strip())
+    for candidate in (prefix / "bin/i2pd", prefix / "sbin/i2pd"):
+        if candidate.exists() and candidate.is_file():
+            return str(candidate)
+    return ""
 
 
 def _i2p_command(provider: I2PProvider, *, endpoint: str, state_path: Path) -> tuple[str, ...]:
@@ -482,8 +511,6 @@ def _i2p_command(provider: I2PProvider, *, endpoint: str, state_path: Path) -> t
         str(tunnels_path),
         "--datadir",
         str(data_dir),
-        "--daemon=false",
-        "--service=false",
     )
 
 

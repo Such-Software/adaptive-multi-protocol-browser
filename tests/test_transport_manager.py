@@ -270,6 +270,42 @@ class TransportManagerTest(unittest.TestCase):
         self.assertEqual("missing-provider", result.status)
         self.assertFalse(result.ready)
         self.assertIn("I2P provider not found", result.message)
+        self.assertIn("brew install i2pd", result.message)
+
+    def test_finds_homebrew_i2pd_provider_when_not_on_path(self) -> None:
+        status = TransportStatus(
+            transport="i2p",
+            installed=True,
+            running=False,
+            endpoint="http://127.0.0.1:4444",
+            adoptable=False,
+            manage_supported=True,
+            note="I2P HTTP proxy",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            prefix = root / "homebrew/opt/i2pd"
+            i2pd = prefix / "bin/i2pd"
+            i2pd.parent.mkdir(parents=True)
+            i2pd.write_text("#!/bin/sh\n", encoding="utf-8")
+
+            class Result:
+                returncode = 0
+                stdout = str(prefix) + "\n"
+
+            def which(name: str) -> str | None:
+                return "/opt/homebrew/bin/brew" if name == "brew" else None
+
+            with patch("ampbrowser.transport_manager.shutil.which", side_effect=which):
+                with patch("ampbrowser.transport_manager.subprocess.run", return_value=Result()):
+                    with patch("ampbrowser.transport_manager._wait_for_endpoint", return_value=True):
+                        with patch("ampbrowser.transport_manager.subprocess.Popen") as popen:
+                            popen.return_value.pid = 1234
+                            result = ensure_transport_ready("i2p", config=AppConfig(transport_modes={}), root=root, status=status)
+
+        self.assertEqual("started", result.status)
+        self.assertEqual(str(i2pd), result.command[0])
 
     def test_starts_configured_i2pd_provider_with_ampb_state(self) -> None:
         status = TransportStatus(
@@ -300,12 +336,12 @@ class TransportManagerTest(unittest.TestCase):
             self.assertIn(str(root / ".ampb/transports/i2p/i2pd.conf"), result.command)
             self.assertIn("--datadir", result.command)
             self.assertIn(str(root / ".ampb/transports/i2p/i2pd-data"), result.command)
-            self.assertIn("--daemon=false", result.command)
-            self.assertIn("--service=false", result.command)
             config_text = (root / ".ampb/transports/i2p/i2pd.conf").read_text(encoding="utf-8")
             self.assertIn("[httpproxy]", config_text)
             self.assertIn("address = 127.0.0.1", config_text)
             self.assertIn("port = 4444", config_text)
+            self.assertIn("daemon = false", config_text)
+            self.assertIn("service = false", config_text)
             self.assertIn("notransit = true", config_text)
             state_path = root / ".ampb/transports/i2p/ampb-owned.json"
             self.assertTrue(state_path.exists())
