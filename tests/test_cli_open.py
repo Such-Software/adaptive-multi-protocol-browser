@@ -108,6 +108,16 @@ class CliOpenTest(unittest.TestCase):
         self.assertIn("prompt_shown=false", output)
         self.assertIn("prompt_approved=false", output)
 
+    def test_route_aware_open_prints_profile_and_pac_path(self) -> None:
+        with patch.object(sys, "stdout", new_callable=io.StringIO) as stdout:
+            code = main(["open", "https://ampgateway.site/", "--route-aware"])
+
+        self.assertEqual(0, code)
+        output = stdout.getvalue()
+        self.assertIn("route_aware=true", output)
+        self.assertIn("profile_path=.ampb/profiles/route-aware", output)
+        self.assertIn("pac_path=.ampb/profiles/route-aware/ampb-proxy.pac", output)
+
 
 if __name__ == "__main__":
     unittest.main()

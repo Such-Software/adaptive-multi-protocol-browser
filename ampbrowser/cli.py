@@ -39,6 +39,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Approve first-use setup in the dry-run plan.",
     )
+    open_parser.add_argument(
+        "--route-aware",
+        action="store_true",
+        help="Launch one desktop profile with PAC routing for clearnet, Tor, and I2P.",
+    )
     open_mode = open_parser.add_mutually_exclusive_group()
     open_mode.add_argument(
         "--dry-run",
@@ -99,6 +104,7 @@ def main(argv: list[str] | None = None) -> int:
                 launch=args.launch,
                 config_path=args.config,
                 platform=args.platform,
+                route_aware=args.route_aware,
             )
         if args.command == "shell":
             return _cmd_shell(args.url, approve=args.yes, config_path=args.config)
@@ -162,9 +168,17 @@ def _cmd_open(
     launch: bool,
     config_path: Path | None,
     platform: str | None,
+    route_aware: bool,
 ) -> int:
     config = load_config(Path.cwd(), config_path)
-    open_plan = prepare_open(url, consent=consent, dry_run=dry_run, config=config, platform=platform)
+    open_plan = prepare_open(
+        url,
+        consent=consent,
+        dry_run=dry_run,
+        config=config,
+        platform=platform,
+        route_aware=route_aware,
+    )
     if launch:
         open_plan = launch_open_plan(open_plan, config=config, root=Path.cwd())
     _print_open_plan("AMPBROWSER_OPEN", open_plan)
@@ -192,6 +206,8 @@ def _print_open_plan(prefix: str, open_plan, extra_fields: tuple[str, ...] = ())
     launch_command = shlex.join(launch_spec.command) if launch_spec else "-"
     runtime_path = launch_spec.runtime_path if launch_spec else "-"
     user_js_path = launch_spec.user_js_path if launch_spec else "-"
+    route_aware = str(bool(launch_spec and launch_spec.route_aware)).lower()
+    pac_path = launch_spec.pac_path if launch_spec else "-"
     message = _safe(open_plan.message)
     extra = (" " + " ".join(extra_fields)) if extra_fields else ""
     print(
@@ -210,8 +226,10 @@ def _print_open_plan(prefix: str, open_plan, extra_fields: tuple[str, ...] = ())
         f"browser_pid={open_plan.browser_pid} "
         f"profile_path={open_plan.profile_path} "
         f"proxy={open_plan.proxy} "
+        f"route_aware={route_aware} "
         f"runtime_path={runtime_path} "
         f"user_js_path={user_js_path} "
+        f"pac_path={pac_path} "
         f"setup_prompt_title=\"{_safe(open_plan.setup_prompt_title)}\" "
         f"setup_prompt_body=\"{_safe(open_plan.setup_prompt_body)}\" "
         f"setup_prompt_approve_label=\"{_safe(open_plan.setup_prompt_approve_label)}\" "

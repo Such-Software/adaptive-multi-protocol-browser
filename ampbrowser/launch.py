@@ -14,6 +14,11 @@ from .config import AppConfig, default_config
 from .plan import BrowsePlan, plan_url
 
 
+ROUTE_AWARE_PROFILE = "route-aware"
+ROUTE_AWARE_PAC_NAME = "ampb-proxy.pac"
+PAC_URL_PLACEHOLDER = "__AMPB_ROUTE_AWARE_PAC_URL__"
+
+
 @dataclass(frozen=True)
 class BrowserLaunchSpec:
     runtime_path: str
@@ -21,6 +26,9 @@ class BrowserLaunchSpec:
     user_js_path: str
     command: tuple[str, ...]
     prefs: tuple[str, ...]
+    route_aware: bool = False
+    pac_path: str = "-"
+    pac_content: str = ""
 
 
 @dataclass(frozen=True)
@@ -55,12 +63,18 @@ def prepare_open(
     dry_run: bool = True,
     config: AppConfig | None = None,
     platform: str | None = None,
+    route_aware: bool = False,
 ) -> OpenPlan:
     config = config or default_config()
     browse_plan = plan_url(raw_url, config=config, platform=platform)
-    profile_path = config.profile_path(browse_plan.route.profile)
+    profile_name = (
+        ROUTE_AWARE_PROFILE
+        if route_aware and browse_plan.route.transport in {"clearnet", "tor", "i2p"}
+        else browse_plan.route.profile
+    )
+    profile_path = config.profile_path(profile_name)
     proxy = _proxy_for(browse_plan)
-    launch_spec = _launch_spec_for(browse_plan, config=config, profile_path=profile_path)
+    launch_spec = _launch_spec_for(browse_plan, config=config, profile_path=profile_path, route_aware=route_aware)
 
     if browse_plan.action.startswith("blocked"):
         return OpenPlan(
@@ -77,7 +91,7 @@ def prepare_open(
 
     if browse_plan.requires_consent:
         setup_steps = _setup_steps(browse_plan)
-        setup_prompt = _setup_prompt(browse_plan, setup_steps)
+        setup_prompt = _setup_prompt(browse_plan, setup_steps, route_aware=route_aware)
         if not consent:
             return OpenPlan(
                 browse_plan=browse_plan,
@@ -192,7 +206,7 @@ class _SetupPrompt:
     approval_command: str
 
 
-def _setup_prompt(browse_plan: BrowsePlan, setup_steps: tuple[str, ...]) -> _SetupPrompt:
+def _setup_prompt(browse_plan: BrowsePlan, setup_steps: tuple[str, ...], *, route_aware: bool = False) -> _SetupPrompt:
     transport = browse_plan.route.transport
     label = _transport_label(transport)
     platform = browse_plan.platform_capability.platform
@@ -214,7 +228,10 @@ def _setup_prompt(browse_plan: BrowsePlan, setup_steps: tuple[str, ...]) -> _Set
         f"{availability} {management} The browser will use {endpoint} for "
         f"{browse_plan.route.normalized}. Setup plan: {setup_summary}."
     )
-    approval_command = shlex.join(("ampbrowser", "open", browse_plan.route.normalized, "--yes", "--launch"))
+    approval_args = ["ampbrowser", "open", browse_plan.route.normalized, "--yes", "--launch"]
+    if route_aware:
+        approval_args.append("--route-aware")
+    approval_command = shlex.join(approval_args)
     return _SetupPrompt(
         title=f"Set up {label}?",
         body=body,
@@ -239,19 +256,25 @@ def _launch_spec_for(
     *,
     config: AppConfig,
     profile_path: str,
+    route_aware: bool = False,
 ) -> BrowserLaunchSpec | None:
     if browse_plan.route.transport not in {"clearnet", "tor", "i2p"}:
         return None
     runtime_path = _runtime_path(config)
     user_js_path = str(Path(profile_path) / "user.js")
     command = (runtime_path, "-no-remote", "-profile", profile_path, browse_plan.route.normalized)
-    prefs = _prefs_for(browse_plan)
+    prefs = _prefs_for(browse_plan, route_aware=route_aware)
+    pac_path = str(Path(profile_path) / ROUTE_AWARE_PAC_NAME) if route_aware else "-"
+    pac_content = _route_aware_pac() if route_aware else ""
     return BrowserLaunchSpec(
         runtime_path=runtime_path,
         profile_path=profile_path,
         user_js_path=user_js_path,
         command=command,
         prefs=prefs,
+        route_aware=route_aware,
+        pac_path=pac_path,
+        pac_content=pac_content,
     )
 
 
@@ -277,7 +300,7 @@ def _runtime_candidates(build_root: Path) -> tuple[Path, ...]:
     )
 
 
-def _prefs_for(browse_plan: BrowsePlan) -> tuple[str, ...]:
+def _prefs_for(browse_plan: BrowsePlan, *, route_aware: bool = False) -> tuple[str, ...]:
     prefs: list[tuple[str, str | int | bool]] = [
         ("browser.shell.checkDefaultBrowser", False),
         ("datareporting.policy.dataSubmissionEnabled", False),
@@ -285,6 +308,18 @@ def _prefs_for(browse_plan: BrowsePlan) -> tuple[str, ...]:
         ("network.dns.disablePrefetch", True),
         ("network.predictor.enabled", False),
     ]
+
+    if route_aware:
+        prefs.extend(
+            [
+                ("network.proxy.type", 2),
+                ("network.proxy.autoconfig_url", PAC_URL_PLACEHOLDER),
+                ("network.proxy.failover_direct", False),
+                ("network.proxy.socks_remote_dns", True),
+                ("network.proxy.no_proxies_on", ""),
+            ]
+        )
+        return tuple(_format_pref(name, value) for name, value in prefs)
 
     transport = browse_plan.route.transport
     if transport == "tor" and browse_plan.status:
@@ -317,6 +352,52 @@ def _prefs_for(browse_plan: BrowsePlan) -> tuple[str, ...]:
     return tuple(_format_pref(name, value) for name, value in prefs)
 
 
+def _route_aware_pac() -> str:
+    tor_proxy = _pac_proxy_for_endpoint(
+        "SOCKS5",
+        _endpoint_for_transport("tor", "socks5://127.0.0.1:9050"),
+    )
+    i2p_proxy = _pac_proxy_for_endpoint(
+        "PROXY",
+        _endpoint_for_transport("i2p", "http://127.0.0.1:4444"),
+    )
+    return "\n".join(
+        (
+            "// Managed by AMPB. Route-aware proxy policy.",
+            "function hasSuffix(value, suffix) {",
+            "  return value.length >= suffix.length && value.substring(value.length - suffix.length) === suffix;",
+            "}",
+            "",
+            "function FindProxyForURL(url, host) {",
+            '  var h = (host || "").toLowerCase();',
+            '  if (h.length > 0 && h.charAt(h.length - 1) === ".") {',
+            "    h = h.substring(0, h.length - 1);",
+            "  }",
+            '  if (hasSuffix(h, ".onion")) {',
+            f'    return "{tor_proxy}";',
+            "  }",
+            '  if (hasSuffix(h, ".i2p")) {',
+            f'    return "{i2p_proxy}";',
+            "  }",
+            '  return "DIRECT";',
+            "}",
+            "",
+        )
+    )
+
+
+def _endpoint_for_transport(transport: str, fallback: str) -> str:
+    adapter = adapter_for(transport)
+    if adapter:
+        return adapter.endpoint
+    return fallback
+
+
+def _pac_proxy_for_endpoint(proxy_type: str, endpoint: str) -> str:
+    host, port = _endpoint_host_port(endpoint)
+    return f"{proxy_type} {host}:{port}"
+
+
 def _endpoint_host_port(endpoint: str) -> tuple[str, int]:
     parsed = urlparse(endpoint)
     return parsed.hostname or "127.0.0.1", parsed.port or 0
@@ -335,8 +416,15 @@ def _format_pref(name: str, value: str | int | bool) -> str:
 def _write_profile(root: Path, spec: BrowserLaunchSpec) -> None:
     profile_path = _path_from(root, spec.profile_path)
     profile_path.mkdir(parents=True, exist_ok=True)
+    pac_url = "-"
+    if spec.route_aware and spec.pac_content:
+        pac_path = _path_from(root, spec.pac_path)
+        pac_path.parent.mkdir(parents=True, exist_ok=True)
+        pac_path.write_text(spec.pac_content, encoding="utf-8")
+        pac_url = pac_path.resolve().as_uri()
     user_js_path = _path_from(root, spec.user_js_path)
     text = "// Managed by AMPB. Local browser profile policy.\n" + "\n".join(spec.prefs) + "\n"
+    text = text.replace(PAC_URL_PLACEHOLDER, pac_url)
     user_js_path.write_text(text, encoding="utf-8")
 
 

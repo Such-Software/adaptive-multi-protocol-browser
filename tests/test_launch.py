@@ -123,6 +123,40 @@ class PrepareOpenTest(unittest.TestCase):
             self.assertTrue(user_js.exists())
             self.assertIn('user_pref("network.proxy.type", 0);', user_js.read_text(encoding="utf-8"))
 
+    def test_route_aware_open_writes_pac_profile(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            runtime = root / "firefox"
+            runtime.write_text("#!/bin/sh\n", encoding="utf-8")
+            config = AppConfig(runtime_path=str(runtime), transport_modes={})
+            plan = prepare_open("https://ampgateway.site/", config=config, route_aware=True)
+
+            self.assertEqual(".ampb/profiles/route-aware", plan.profile_path)
+            self.assertIsNotNone(plan.launch_spec)
+            self.assertTrue(plan.launch_spec.route_aware)
+            self.assertEqual(".ampb/profiles/route-aware/ampb-proxy.pac", plan.launch_spec.pac_path)
+            self.assertIn('user_pref("network.proxy.type", 2);', plan.launch_spec.prefs)
+            self.assertIn("__AMPB_ROUTE_AWARE_PAC_URL__", "\n".join(plan.launch_spec.prefs))
+
+            with patch("ampbrowser.launch.subprocess.Popen") as popen:
+                launched = execute_open(plan, root=root)
+
+            self.assertEqual("launched", launched.status)
+            popen.assert_called_once_with(
+                (str(runtime), "-no-remote", "-profile", ".ampb/profiles/route-aware", "https://ampgateway.site/"),
+                cwd=str(root),
+            )
+            profile = root / ".ampb/profiles/route-aware"
+            user_js = (profile / "user.js").read_text(encoding="utf-8")
+            pac = (profile / "ampb-proxy.pac").read_text(encoding="utf-8")
+            self.assertIn((profile / "ampb-proxy.pac").resolve().as_uri(), user_js)
+            self.assertNotIn("__AMPB_ROUTE_AWARE_PAC_URL__", user_js)
+            self.assertIn('hasSuffix(h, ".onion")', pac)
+            self.assertIn('return "SOCKS5 127.0.0.1:9050";', pac)
+            self.assertIn('hasSuffix(h, ".i2p")', pac)
+            self.assertIn('return "PROXY 127.0.0.1:4444";', pac)
+            self.assertIn('return "DIRECT";', pac)
+
     def test_execute_open_blocks_when_runtime_is_missing(self) -> None:
         config = AppConfig(runtime_path="/missing/ampb/firefox", transport_modes={})
         plan = prepare_open("wownero.org", config=config)
