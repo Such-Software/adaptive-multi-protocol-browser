@@ -33,6 +33,7 @@ class OpenPlan:
     setup_steps: tuple[str, ...]
     message: str
     launch_spec: BrowserLaunchSpec | None = None
+    browser_pid: int = 0
     transport_setup_status: str = "-"
     transport_setup_provider: str = "-"
     transport_setup_message: str = "-"
@@ -131,8 +132,8 @@ def execute_open(open_plan: OpenPlan, *, root: Path | None = None) -> OpenPlan:
         )
 
     _write_profile(root, spec)
-    subprocess.Popen(spec.command, cwd=str(root))  # noqa: S603
-    return replace(open_plan, dry_run=False, status="launched", message="launched bundled browser")
+    process = subprocess.Popen(spec.command, cwd=str(root))  # noqa: S603
+    return replace(open_plan, dry_run=False, status="launched", browser_pid=process.pid, message="launched bundled browser")
 
 
 def _proxy_for(browse_plan: BrowsePlan) -> str:

@@ -40,6 +40,9 @@ python3 -m ampbrowser inspect
 python3 -m ampbrowser plan gemini://wownero.org/
 python3 -m ampbrowser open https://wownero.org/
 python3 -m ampbrowser open http://example.b32.i2p/ --yes
+python3 -m ampbrowser transport start tor
+python3 -m ampbrowser transport status tor
+python3 -m ampbrowser transport stop tor
 python3 -m ampbrowser open http://example.b32.i2p/ --config examples/config.toml
 python3 -m ampbrowser open http://example.b32.i2p/ --platform android
 python3 -m ampbrowser fixture check ../adaptive-multi-protocol-gateway/dist/wownero/ampg-fixture-manifest.json

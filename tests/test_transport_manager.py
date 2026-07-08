@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import patch
 
 from ampbrowser.config import AppConfig
-from ampbrowser.transport_manager import ensure_transport_ready
+from ampbrowser.transport_manager import ensure_transport_ready, stop_managed_transport, transport_status
 from ampbrowser.transports import TransportStatus
 
 
@@ -71,17 +71,97 @@ class TransportManagerTest(unittest.TestCase):
                         popen.return_value.pid = 1234
                         result = ensure_transport_ready("tor", config=AppConfig(transport_modes={}), root=root, status=status)
 
-        self.assertEqual("started", result.status)
+            self.assertEqual("started", result.status)
+            self.assertEqual("arti", result.provider)
+            self.assertTrue(result.owned)
+            self.assertEqual(1234, result.pid)
+            self.assertEqual(str(root / ".ampb/transports/tor"), result.state_dir)
+            self.assertEqual(str(arti), result.command[0])
+            self.assertIn("proxy", result.command)
+            self.assertIn("-p", result.command)
+            self.assertIn('storage.state_dir="' + str(root / ".ampb/transports/tor/arti-state") + '"', result.command)
+            self.assertIn('storage.cache_dir="' + str(root / ".ampb/transports/tor/arti-cache") + '"', result.command)
+            state_path = root / ".ampb/transports/tor/ampb-owned.json"
+            self.assertTrue(state_path.exists())
+            self.assertIn('"provider": "arti"', state_path.read_text(encoding="utf-8"))
+            popen.assert_called_once()
+
+    def test_reuses_recorded_ampb_owned_transport(self) -> None:
+        status = TransportStatus(
+            transport="tor",
+            installed=True,
+            running=False,
+            endpoint="socks5://127.0.0.1:9050",
+            adoptable=False,
+            manage_supported=True,
+            note="Tor SOCKS proxy",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state_dir = root / ".ampb/transports/tor"
+            state_dir.mkdir(parents=True)
+            (state_dir / "ampb-owned.json").write_text(
+                """
+{
+  "command": ["/tmp/arti", "proxy"],
+  "endpoint": "socks5://127.0.0.1:9050",
+  "pid": 1234,
+  "provider": "arti",
+  "state_dir": "%s",
+  "transport": "tor"
+}
+""".strip()
+                % state_dir,
+                encoding="utf-8",
+            )
+            with patch("ampbrowser.transport_manager._pid_alive", return_value=True):
+                with patch("ampbrowser.transport_manager._wait_for_endpoint", return_value=True):
+                    with patch("ampbrowser.transport_manager.subprocess.Popen") as popen:
+                        result = ensure_transport_ready("tor", config=AppConfig(transport_modes={}), root=root, status=status)
+
+        self.assertEqual("ready", result.status)
         self.assertEqual("arti", result.provider)
         self.assertTrue(result.owned)
         self.assertEqual(1234, result.pid)
-        self.assertEqual(str(root / ".ampb/transports/tor"), result.state_dir)
-        self.assertEqual(str(arti), result.command[0])
-        self.assertIn("proxy", result.command)
-        self.assertIn("-p", result.command)
-        self.assertIn('storage.state_dir="' + str(root / ".ampb/transports/tor/arti-state") + '"', result.command)
-        self.assertIn('storage.cache_dir="' + str(root / ".ampb/transports/tor/arti-cache") + '"', result.command)
-        popen.assert_called_once()
+        popen.assert_not_called()
+
+    def test_transport_status_removes_stale_owned_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state_dir = root / ".ampb/transports/tor"
+            state_dir.mkdir(parents=True)
+            state_path = state_dir / "ampb-owned.json"
+            state_path.write_text('{"pid": 1234, "provider": "arti", "endpoint": "socks5://127.0.0.1:9050"}\n', encoding="utf-8")
+            with patch("ampbrowser.transport_manager._pid_alive", return_value=False):
+                result = transport_status("tor", config=AppConfig(transport_modes={}), root=root)
+
+        self.assertEqual("stale", result.status)
+        self.assertFalse(state_path.exists())
+
+    def test_stop_managed_transport_terminates_recorded_pid(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state_dir = root / ".ampb/transports/tor"
+            state_dir.mkdir(parents=True)
+            state_path = state_dir / "ampb-owned.json"
+            state_path.write_text('{"pid": 1234, "provider": "arti", "endpoint": "socks5://127.0.0.1:9050"}\n', encoding="utf-8")
+
+            live = [True]
+
+            def fake_alive(pid: int) -> bool:
+                return live[0]
+
+            def fake_kill(pid: int, sig: int) -> None:
+                live[0] = False
+
+            with patch("ampbrowser.transport_manager._pid_alive", side_effect=fake_alive):
+                with patch("ampbrowser.transport_manager.os.kill", side_effect=fake_kill):
+                    result = stop_managed_transport("tor", config=AppConfig(transport_modes={}), root=root)
+
+        self.assertEqual("stopped", result.status)
+        self.assertEqual("arti", result.provider)
+        self.assertFalse(state_path.exists())
 
     def test_starts_configured_classic_tor_provider_with_ampb_state(self) -> None:
         status = TransportStatus(

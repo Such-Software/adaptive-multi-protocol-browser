@@ -13,7 +13,7 @@ from .launch import execute_open, prepare_open
 from .plan import plan_url
 from .platforms import PLATFORM_CHOICES
 from .routing import route_url
-from .transport_manager import ensure_transport_ready
+from .transport_manager import ensure_transport_ready, stop_managed_transport, transport_status
 from .transports import inspect_transports
 
 
@@ -53,6 +53,18 @@ def main(argv: list[str] | None = None) -> int:
 
     subcommands.add_parser("inspect", help="Inspect local transport readiness.")
 
+    transport_parser = subcommands.add_parser("transport", help="Manage AMPB-owned transports.")
+    transport_subcommands = transport_parser.add_subparsers(dest="transport_command", required=True)
+    transport_status_parser = transport_subcommands.add_parser("status", help="Show AMPB transport ownership state.")
+    transport_status_parser.add_argument("transport")
+    transport_status_parser.add_argument("--config", type=Path, help="Path to an AMPB config file.")
+    transport_start_parser = transport_subcommands.add_parser("start", help="Start an AMPB-owned transport.")
+    transport_start_parser.add_argument("transport")
+    transport_start_parser.add_argument("--config", type=Path, help="Path to an AMPB config file.")
+    transport_stop_parser = transport_subcommands.add_parser("stop", help="Stop an AMPB-owned transport.")
+    transport_stop_parser.add_argument("transport")
+    transport_stop_parser.add_argument("--config", type=Path, help="Path to an AMPB config file.")
+
     fixture_parser = subcommands.add_parser("fixture", help="Check AMPG fixture manifests.")
     fixture_subcommands = fixture_parser.add_subparsers(dest="fixture_command", required=True)
     fixture_check = fixture_subcommands.add_parser("check", help="Validate route expectations.")
@@ -80,6 +92,8 @@ def main(argv: list[str] | None = None) -> int:
             )
         if args.command == "inspect":
             return _cmd_inspect()
+        if args.command == "transport":
+            return _cmd_transport(args)
         if args.command == "fixture":
             return _cmd_fixture(args)
         if args.command == "docs":
@@ -177,6 +191,7 @@ def _cmd_open(
         f"policy={browse_plan.policy_mode} "
         f"requires_consent={str(browse_plan.requires_consent).lower()} "
         f"consent_granted={str(open_plan.consent_granted).lower()} "
+        f"browser_pid={open_plan.browser_pid} "
         f"profile_path={open_plan.profile_path} "
         f"proxy={open_plan.proxy} "
         f"runtime_path={runtime_path} "
@@ -203,6 +218,33 @@ def _cmd_inspect() -> int:
             f"endpoint={status.endpoint} "
             f"note=\"{status.note}\""
         )
+    return 0
+
+
+def _cmd_transport(args) -> int:
+    config = load_config(Path.cwd(), args.config)
+    if args.transport_command == "status":
+        result = transport_status(args.transport, config=config, root=Path.cwd())
+    elif args.transport_command == "start":
+        result = ensure_transport_ready(args.transport, config=config, root=Path.cwd())
+    elif args.transport_command == "stop":
+        result = stop_managed_transport(args.transport, config=config, root=Path.cwd())
+    else:
+        return 1
+    command = shlex.join(result.command) if result.command else "-"
+    print(
+        "AMPBROWSER_TRANSPORT "
+        f"transport={result.transport} "
+        f"provider={result.provider} "
+        f"status={result.status} "
+        f"ready={str(result.ready).lower()} "
+        f"owned={str(result.owned).lower()} "
+        f"pid={result.pid} "
+        f"endpoint={result.endpoint} "
+        f"state_dir={result.state_dir} "
+        f"command=\"{_safe(command)}\" "
+        f"message=\"{_safe(result.message)}\""
+    )
     return 0
 
 

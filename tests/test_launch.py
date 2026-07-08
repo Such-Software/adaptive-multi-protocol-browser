@@ -103,6 +103,7 @@ class PrepareOpenTest(unittest.TestCase):
 
             self.assertEqual("launched", launched.status)
             self.assertFalse(launched.dry_run)
+            self.assertEqual(popen.return_value.pid, launched.browser_pid)
             popen.assert_called_once_with(
                 (str(runtime), "-no-remote", "-profile", ".ampb/profiles/clearnet", "https://wownero.org"),
                 cwd=str(root),

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import json
 from pathlib import Path
 import os
+import signal
 import shutil
 import socket
 import subprocess
@@ -15,6 +16,7 @@ from .config import AppConfig
 
 
 ARTI_RELATIVE_PATH = Path("providers/arti/bin/arti")
+OWNED_STATE_FILE = "ampb-owned.json"
 
 
 @dataclass(frozen=True)
@@ -52,6 +54,10 @@ def ensure_transport_ready(
     if adapter is None:
         return ManagedTransportResult(transport, "-", "unsupported", "-", False, 0, "-", (), "transport adapter not found")
 
+    owned = _owned_transport_result(transport, config=config, root=root, wait_seconds=wait_seconds)
+    if owned:
+        return owned
+
     status = status or adapter.inspect()
     if status.adoptable:
         return ManagedTransportResult(
@@ -80,6 +86,134 @@ def ensure_transport_ready(
         )
 
     return _start_tor(config=config, root=root, endpoint=status.endpoint, wait_seconds=wait_seconds)
+
+
+def transport_status(
+    transport: str,
+    *,
+    config: AppConfig,
+    root: Path,
+) -> ManagedTransportResult:
+    adapter = adapter_for(transport)
+    if adapter is None:
+        return ManagedTransportResult(transport, "-", "unsupported", "-", False, 0, "-", (), "transport adapter not found")
+
+    owned = _owned_transport_result(transport, config=config, root=root, wait_seconds=0.1)
+    if owned:
+        return owned
+
+    status = adapter.inspect()
+    if status.adoptable:
+        return ManagedTransportResult(
+            transport,
+            "-",
+            "ready",
+            status.endpoint,
+            False,
+            0,
+            _managed_state_dir(root, config, transport),
+            (),
+            f"{transport} transport is running but not AMPB-owned",
+        )
+
+    return ManagedTransportResult(
+        transport,
+        "-",
+        "stopped",
+        status.endpoint,
+        False,
+        0,
+        _managed_state_dir(root, config, transport),
+        (),
+        f"{transport} transport is not running",
+    )
+
+
+def stop_managed_transport(
+    transport: str,
+    *,
+    config: AppConfig,
+    root: Path,
+    wait_seconds: float = 5.0,
+) -> ManagedTransportResult:
+    state_path = _owned_state_path(root, config, transport)
+    state = _read_owned_state(state_path)
+    endpoint = str(state.get("endpoint") or _endpoint_for(transport))
+    state_dir = _managed_state_dir(root, config, transport)
+    provider = str(state.get("provider") or "-")
+    command = tuple(str(part) for part in state.get("command", ()))
+    pid = _state_pid(state)
+
+    if not state or not pid:
+        return ManagedTransportResult(
+            transport,
+            "-",
+            "not-owned",
+            endpoint,
+            False,
+            0,
+            state_dir,
+            (),
+            f"no AMPB-owned {transport} process is recorded",
+        )
+
+    if not _pid_alive(pid):
+        _unlink_state(state_path)
+        return ManagedTransportResult(
+            transport,
+            provider,
+            "stale",
+            endpoint,
+            True,
+            pid,
+            state_dir,
+            command,
+            f"removed stale AMPB-owned {transport} state",
+        )
+
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except OSError as exc:
+        return ManagedTransportResult(
+            transport,
+            provider,
+            "stop-failed",
+            endpoint,
+            True,
+            pid,
+            state_dir,
+            command,
+            f"could not stop AMPB-owned {transport}: {exc}",
+        )
+
+    deadline = time.monotonic() + wait_seconds
+    while time.monotonic() <= deadline:
+        if not _pid_alive(pid):
+            _unlink_state(state_path)
+            return ManagedTransportResult(
+                transport,
+                provider,
+                "stopped",
+                endpoint,
+                True,
+                pid,
+                state_dir,
+                command,
+                f"stopped AMPB-owned {transport}",
+            )
+        time.sleep(0.1)
+
+    return ManagedTransportResult(
+        transport,
+        provider,
+        "stop-timeout",
+        endpoint,
+        True,
+        pid,
+        state_dir,
+        command,
+        f"AMPB-owned {transport} did not stop before timeout",
+    )
 
 
 def _start_tor(
@@ -126,7 +260,7 @@ def _start_tor(
         )
 
     if _wait_for_endpoint(endpoint, timeout_seconds=wait_seconds):
-        return ManagedTransportResult(
+        result = ManagedTransportResult(
             "tor",
             provider.kind,
             "started",
@@ -137,6 +271,8 @@ def _start_tor(
             command,
             f"started managed {provider.kind} transport",
         )
+        _write_owned_state(root, config, result)
+        return result
 
     process.terminate()
     return ManagedTransportResult(
@@ -226,6 +362,130 @@ def _tor_command(provider: TorProvider, *, endpoint: str, state_path: Path) -> t
 
 def _managed_state_dir(root: Path, config: AppConfig, transport: str) -> str:
     return str(root / config.state_dir / "transports" / transport)
+
+
+def _owned_state_path(root: Path, config: AppConfig, transport: str) -> Path:
+    return Path(_managed_state_dir(root, config, transport)) / OWNED_STATE_FILE
+
+
+def _write_owned_state(root: Path, config: AppConfig, result: ManagedTransportResult) -> None:
+    state_path = _owned_state_path(root, config, result.transport)
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    _chmod_private(state_path.parent)
+    data = {
+        "transport": result.transport,
+        "provider": result.provider,
+        "endpoint": result.endpoint,
+        "pid": result.pid,
+        "state_dir": result.state_dir,
+        "command": list(result.command),
+        "started_at": int(time.time()),
+    }
+    state_path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    _chmod_private(state_path)
+
+
+def _owned_transport_result(
+    transport: str,
+    *,
+    config: AppConfig,
+    root: Path,
+    wait_seconds: float,
+) -> ManagedTransportResult | None:
+    state_path = _owned_state_path(root, config, transport)
+    state = _read_owned_state(state_path)
+    if not state:
+        return None
+
+    pid = _state_pid(state)
+    provider = str(state.get("provider") or "-")
+    endpoint = str(state.get("endpoint") or _endpoint_for(transport))
+    state_dir = str(state.get("state_dir") or _managed_state_dir(root, config, transport))
+    command = tuple(str(part) for part in state.get("command", ()))
+
+    if not pid or not _pid_alive(pid):
+        _unlink_state(state_path)
+        return ManagedTransportResult(
+            transport,
+            provider,
+            "stale",
+            endpoint,
+            True,
+            pid,
+            state_dir,
+            command,
+            f"removed stale AMPB-owned {transport} state",
+        )
+
+    if _wait_for_endpoint(endpoint, timeout_seconds=wait_seconds):
+        return ManagedTransportResult(
+            transport,
+            provider,
+            "ready",
+            endpoint,
+            True,
+            pid,
+            state_dir,
+            command,
+            f"using running AMPB-owned {transport}",
+        )
+
+    return ManagedTransportResult(
+        transport,
+        provider,
+        "running",
+        endpoint,
+        True,
+        pid,
+        state_dir,
+        command,
+        f"AMPB-owned {transport} process is running but endpoint is not ready",
+    )
+
+
+def _read_owned_state(path: Path) -> dict[str, object]:
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return data
+
+
+def _state_pid(state: dict[str, object]) -> int:
+    value = state.get("pid")
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.isdigit():
+        return int(value)
+    return 0
+
+
+def _pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def _unlink_state(path: Path) -> None:
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        pass
+    except OSError:
+        pass
+
+
+def _endpoint_for(transport: str) -> str:
+    adapter = adapter_for(transport)
+    if not adapter:
+        return "-"
+    return adapter.endpoint
 
 
 def _chmod_private(path: Path) -> None:

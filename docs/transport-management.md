@@ -13,6 +13,10 @@ With `--launch --yes`, AMPB can start a configured Tor provider with AMPB-owned 
 before launching. Transport policy comes from `.ampb/config.toml` or an explicit
 `--config` path.
 
+`ampbrowser transport start|status|stop <name>` exposes the same ownership model without
+launching a browser. It records only AMPB-owned processes and refuses to stop adopted
+user or system daemons.
+
 ## Lifecycle
 
 1. Inspect known local endpoints.
@@ -31,6 +35,7 @@ system service, or package manager that launched them.
 
 Managed transports store runtime state under `.ampb/transports/<name>` by default. Keys,
 leases, tunnels, and daemon logs in that tree are local state and must not be committed.
+AMPB records owned process metadata in `.ampb/transports/<name>/ampb-owned.json`.
 
 ## Current Adapters
 
