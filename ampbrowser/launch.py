@@ -5,6 +5,7 @@ from dataclasses import replace
 import json
 import os
 from pathlib import Path
+import shlex
 import subprocess
 from urllib.parse import urlparse
 
@@ -34,8 +35,15 @@ class OpenPlan:
     message: str
     launch_spec: BrowserLaunchSpec | None = None
     browser_pid: int = 0
+    setup_prompt_title: str = "-"
+    setup_prompt_body: str = "-"
+    setup_prompt_approve_label: str = "-"
+    setup_prompt_approval_command: str = "-"
     transport_setup_status: str = "-"
     transport_setup_provider: str = "-"
+    transport_setup_owned: bool = False
+    transport_setup_pid: int = 0
+    transport_setup_endpoint: str = "-"
     transport_setup_message: str = "-"
 
 
@@ -68,6 +76,7 @@ def prepare_open(
 
     if browse_plan.requires_consent:
         setup_steps = _setup_steps(browse_plan)
+        setup_prompt = _setup_prompt(browse_plan, setup_steps)
         if not consent:
             return OpenPlan(
                 browse_plan=browse_plan,
@@ -79,6 +88,10 @@ def prepare_open(
                 setup_steps=setup_steps,
                 message=browse_plan.prompt,
                 launch_spec=launch_spec,
+                setup_prompt_title=setup_prompt.title,
+                setup_prompt_body=setup_prompt.body,
+                setup_prompt_approve_label=setup_prompt.approve_label,
+                setup_prompt_approval_command=setup_prompt.approval_command,
             )
         return OpenPlan(
             browse_plan=browse_plan,
@@ -90,6 +103,10 @@ def prepare_open(
             setup_steps=setup_steps,
             message="first-use setup approved; browser launch waits for transport readiness",
             launch_spec=launch_spec,
+            setup_prompt_title=setup_prompt.title,
+            setup_prompt_body=setup_prompt.body,
+            setup_prompt_approve_label=setup_prompt.approve_label,
+            setup_prompt_approval_command=setup_prompt.approval_command,
         )
 
     return OpenPlan(
@@ -164,6 +181,56 @@ def _setup_steps(browse_plan: BrowsePlan) -> tuple[str, ...]:
         return tuple(steps)
     steps.extend(adapter.setup_steps(installed=browse_plan.status.installed, platform=platform))
     return tuple(steps)
+
+
+@dataclass(frozen=True)
+class _SetupPrompt:
+    title: str
+    body: str
+    approve_label: str
+    approval_command: str
+
+
+def _setup_prompt(browse_plan: BrowsePlan, setup_steps: tuple[str, ...]) -> _SetupPrompt:
+    transport = browse_plan.route.transport
+    label = _transport_label(transport)
+    platform = browse_plan.platform_capability.platform
+    endpoint = browse_plan.status.endpoint if browse_plan.status else "-"
+    setup_summary = "; ".join(setup_steps) if setup_steps else "prepare the transport"
+    if browse_plan.status and not browse_plan.status.installed:
+        availability = f"{label} is not installed or running."
+    else:
+        availability = f"{label} is not running."
+    if platform == "desktop":
+        management = f"AMPB can start a managed {label} session and keep its state isolated."
+    elif platform == "android":
+        management = f"AMPB can start a visible Android foreground {label} session."
+    elif platform == "ios":
+        management = f"AMPB can start a foreground-only in-app {label} session."
+    else:
+        management = f"AMPB can prepare {label} for this platform."
+    body = (
+        f"{availability} {management} The browser will use {endpoint} for "
+        f"{browse_plan.route.normalized}. Setup plan: {setup_summary}."
+    )
+    approval_command = shlex.join(("ampbrowser", "open", browse_plan.route.normalized, "--yes", "--launch"))
+    return _SetupPrompt(
+        title=f"Set up {label}?",
+        body=body,
+        approve_label=f"Start {label} and open",
+        approval_command=approval_command,
+    )
+
+
+def _transport_label(transport: str) -> str:
+    labels = {
+        "tor": "Tor",
+        "i2p": "I2P",
+        "ipfs": "IPFS",
+        "gemini": "Gemini",
+        "reticulum": "Reticulum",
+    }
+    return labels.get(transport, transport)
 
 
 def _launch_spec_for(

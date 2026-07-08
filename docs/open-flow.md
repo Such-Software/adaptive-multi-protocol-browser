@@ -22,6 +22,14 @@ profile and launch the configured browser runtime when the selected route is alr
 ready. With `--launch --yes`, AMPB may start an approved managed transport before
 launching. Transport setup remains gated by first-use approval and readiness checks.
 
+For a missing transport, `open --launch` does not start anything until approval is
+provided. The output includes `setup_prompt_title`, `setup_prompt_body`,
+`setup_prompt_approve_label`, and `setup_prompt_approval_command`; native shells should
+render those fields as the first-use popup. After approval, launch output includes
+`transport_setup_status`, `transport_setup_provider`, `transport_setup_owned`,
+`transport_setup_pid`, and `transport_setup_endpoint` so the shell can distinguish an
+adopted daemon from an AMPB-owned managed process.
+
 ## Examples
 
 ```sh
@@ -31,5 +39,6 @@ python3 -m ampbrowser open http://example.b32.i2p/ --yes
 python3 -m ampbrowser open http://example.b32.i2p/ --config examples/config.toml
 python3 -m ampbrowser open http://example.b32.i2p/ --platform android
 python3 -m ampbrowser open https://wownero.org/ --launch
+python3 -m ampbrowser open http://example.onion/ --launch
 python3 -m ampbrowser open http://example.onion/ --yes --launch
 ```

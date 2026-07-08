@@ -168,6 +168,9 @@ def _cmd_open(
                 message=transport_result.message,
                 transport_setup_status=transport_result.status,
                 transport_setup_provider=transport_result.provider,
+                transport_setup_owned=transport_result.owned,
+                transport_setup_pid=transport_result.pid,
+                transport_setup_endpoint=transport_result.endpoint,
                 transport_setup_message=transport_result.message,
             )
         open_plan = execute_open(open_plan, root=Path.cwd())
@@ -196,8 +199,15 @@ def _cmd_open(
         f"proxy={open_plan.proxy} "
         f"runtime_path={runtime_path} "
         f"user_js_path={user_js_path} "
+        f"setup_prompt_title=\"{_safe(open_plan.setup_prompt_title)}\" "
+        f"setup_prompt_body=\"{_safe(open_plan.setup_prompt_body)}\" "
+        f"setup_prompt_approve_label=\"{_safe(open_plan.setup_prompt_approve_label)}\" "
+        f"setup_prompt_approval_command=\"{_safe(open_plan.setup_prompt_approval_command)}\" "
         f"transport_setup_status={open_plan.transport_setup_status} "
         f"transport_setup_provider={open_plan.transport_setup_provider} "
+        f"transport_setup_owned={str(open_plan.transport_setup_owned).lower()} "
+        f"transport_setup_pid={open_plan.transport_setup_pid} "
+        f"transport_setup_endpoint={open_plan.transport_setup_endpoint} "
         f"transport_setup_message=\"{_safe(open_plan.transport_setup_message)}\" "
         f"launch_command=\"{_safe(launch_command)}\" "
         f"setup_steps=\"{_safe(setup_steps)}\" "

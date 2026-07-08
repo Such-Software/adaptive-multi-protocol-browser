@@ -139,6 +139,20 @@ class TransportManagerTest(unittest.TestCase):
         self.assertEqual("stale", result.status)
         self.assertFalse(state_path.exists())
 
+    def test_transport_status_reports_stale_cleanup_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state_dir = root / ".ampb/transports/tor"
+            state_dir.mkdir(parents=True)
+            state_path = state_dir / "ampb-owned.json"
+            state_path.write_text('{"pid": 1234, "provider": "arti", "endpoint": "socks5://127.0.0.1:9050"}\n', encoding="utf-8")
+            with patch("ampbrowser.transport_manager._pid_alive", return_value=False):
+                with patch("ampbrowser.transport_manager._unlink_state", return_value=False):
+                    result = transport_status("tor", config=AppConfig(transport_modes={}), root=root)
+
+        self.assertEqual("stale-cleanup-failed", result.status)
+        self.assertIn("could not remove stale", result.message)
+
     def test_stop_managed_transport_terminates_recorded_pid(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

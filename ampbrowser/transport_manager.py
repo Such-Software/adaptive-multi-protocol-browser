@@ -158,17 +158,21 @@ def stop_managed_transport(
         )
 
     if not _pid_alive(pid):
-        _unlink_state(state_path)
+        cleaned = _unlink_state(state_path)
         return ManagedTransportResult(
             transport,
             provider,
-            "stale",
+            "stale" if cleaned else "stale-cleanup-failed",
             endpoint,
             True,
             pid,
             state_dir,
             command,
-            f"removed stale AMPB-owned {transport} state",
+            (
+                f"removed stale AMPB-owned {transport} state"
+                if cleaned
+                else f"could not remove stale AMPB-owned {transport} state"
+            ),
         )
 
     try:
@@ -189,17 +193,21 @@ def stop_managed_transport(
     deadline = time.monotonic() + wait_seconds
     while time.monotonic() <= deadline:
         if not _pid_alive(pid):
-            _unlink_state(state_path)
+            cleaned = _unlink_state(state_path)
             return ManagedTransportResult(
                 transport,
                 provider,
-                "stopped",
+                "stopped" if cleaned else "stopped-cleanup-failed",
                 endpoint,
                 True,
                 pid,
                 state_dir,
                 command,
-                f"stopped AMPB-owned {transport}",
+                (
+                    f"stopped AMPB-owned {transport}"
+                    if cleaned
+                    else f"stopped AMPB-owned {transport} but could not remove state"
+                ),
             )
         time.sleep(0.1)
 
@@ -404,17 +412,21 @@ def _owned_transport_result(
     command = tuple(str(part) for part in state.get("command", ()))
 
     if not pid or not _pid_alive(pid):
-        _unlink_state(state_path)
+        cleaned = _unlink_state(state_path)
         return ManagedTransportResult(
             transport,
             provider,
-            "stale",
+            "stale" if cleaned else "stale-cleanup-failed",
             endpoint,
             True,
             pid,
             state_dir,
             command,
-            f"removed stale AMPB-owned {transport} state",
+            (
+                f"removed stale AMPB-owned {transport} state"
+                if cleaned
+                else f"could not remove stale AMPB-owned {transport} state"
+            ),
         )
 
     if _wait_for_endpoint(endpoint, timeout_seconds=wait_seconds):
@@ -472,13 +484,14 @@ def _pid_alive(pid: int) -> bool:
         return False
 
 
-def _unlink_state(path: Path) -> None:
+def _unlink_state(path: Path) -> bool:
     try:
         path.unlink()
+        return True
     except FileNotFoundError:
-        pass
+        return True
     except OSError:
-        pass
+        return False
 
 
 def _endpoint_for(transport: str) -> str:

@@ -49,6 +49,14 @@ class PrepareOpenTest(unittest.TestCase):
             plan.setup_steps,
         )
         self.assertIn("install and start", plan.message)
+        self.assertEqual("Set up I2P?", plan.setup_prompt_title)
+        self.assertIn("I2P is not installed or running.", plan.setup_prompt_body)
+        self.assertIn("http://example.b32.i2p/", plan.setup_prompt_body)
+        self.assertEqual("Start I2P and open", plan.setup_prompt_approve_label)
+        self.assertEqual(
+            "ampbrowser open http://example.b32.i2p/ --yes --launch",
+            plan.setup_prompt_approval_command,
+        )
 
     def test_yes_approves_setup_without_executing_it(self) -> None:
         status = TransportStatus(
@@ -68,6 +76,9 @@ class PrepareOpenTest(unittest.TestCase):
         self.assertTrue(plan.dry_run)
         self.assertTrue(plan.consent_granted)
         self.assertEqual(("start managed Arti SOCKS proxy", "wait for socks5://127.0.0.1:9050"), plan.setup_steps)
+        self.assertEqual("Set up Tor?", plan.setup_prompt_title)
+        self.assertIn("Tor is not running.", plan.setup_prompt_body)
+        self.assertEqual("Start Tor and open", plan.setup_prompt_approve_label)
 
     def test_adopted_tor_launch_spec_sets_socks_remote_dns(self) -> None:
         status = TransportStatus(

@@ -39,6 +39,8 @@ python3 -m ampbrowser route ipfs://bafyexample/
 python3 -m ampbrowser inspect
 python3 -m ampbrowser plan gemini://wownero.org/
 python3 -m ampbrowser open https://wownero.org/
+python3 -m ampbrowser open http://example.onion/ --launch
+python3 -m ampbrowser open http://example.onion/ --yes --launch
 python3 -m ampbrowser open http://example.b32.i2p/ --yes
 python3 -m ampbrowser transport start tor
 python3 -m ampbrowser transport status tor
