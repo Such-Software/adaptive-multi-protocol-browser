@@ -19,6 +19,7 @@ class DocsGenTest(unittest.TestCase):
                     Path("docs/generated/browser-strategy.md"),
                     Path("docs/generated/candidate-transports.md"),
                     Path("docs/generated/platform-capabilities.md"),
+                    Path("docs/generated/provider-sources.md"),
                     Path("docs/generated/route-rules.md"),
                     Path("docs/generated/transports.md"),
                 },

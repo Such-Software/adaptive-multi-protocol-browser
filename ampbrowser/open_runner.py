@@ -23,6 +23,7 @@ def launch_open_plan(open_plan: OpenPlan, *, config: AppConfig, root: Path) -> O
             message=transport_result.message,
             transport_setup_status=transport_result.status,
             transport_setup_provider=transport_result.provider,
+            transport_setup_provider_source=transport_result.provider_source,
             transport_setup_owned=transport_result.owned,
             transport_setup_pid=transport_result.pid,
             transport_setup_endpoint=transport_result.endpoint,

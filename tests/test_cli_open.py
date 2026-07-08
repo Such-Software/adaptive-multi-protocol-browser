@@ -60,6 +60,7 @@ class CliOpenTest(unittest.TestCase):
             state_dir=".ampb/transports/tor",
             command=("/tmp/arti", "proxy"),
             message="started managed arti transport",
+            provider_source="bundled-sidecar",
         )
 
         def fake_execute(open_plan, *, root: Path):
@@ -85,6 +86,7 @@ class CliOpenTest(unittest.TestCase):
         self.assertIn("browser_pid=5678", output)
         self.assertIn("transport_setup_status=started", output)
         self.assertIn("transport_setup_provider=arti", output)
+        self.assertIn("transport_setup_provider_source=bundled-sidecar", output)
         self.assertIn("transport_setup_owned=true", output)
         self.assertIn("transport_setup_pid=1234", output)
         self.assertIn("transport_setup_endpoint=socks5://127.0.0.1:9050", output)

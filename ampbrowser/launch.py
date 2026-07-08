@@ -41,6 +41,7 @@ class OpenPlan:
     setup_prompt_approval_command: str = "-"
     transport_setup_status: str = "-"
     transport_setup_provider: str = "-"
+    transport_setup_provider_source: str = "-"
     transport_setup_owned: bool = False
     transport_setup_pid: int = 0
     transport_setup_endpoint: str = "-"

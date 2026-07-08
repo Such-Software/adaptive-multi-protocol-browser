@@ -16,6 +16,7 @@ from .config import AppConfig
 
 
 ARTI_RELATIVE_PATH = Path("providers/arti/bin/arti")
+I2PD_RELATIVE_PATH = Path("providers/i2pd/bin/i2pd")
 OWNED_STATE_FILE = "ampb-owned.json"
 
 
@@ -23,12 +24,14 @@ OWNED_STATE_FILE = "ampb-owned.json"
 class TorProvider:
     kind: str
     binary: str
+    source: str
 
 
 @dataclass(frozen=True)
 class I2PProvider:
     kind: str
     binary: str
+    source: str
 
 
 @dataclass(frozen=True)
@@ -42,6 +45,7 @@ class ManagedTransportResult:
     state_dir: str
     command: tuple[str, ...]
     message: str
+    provider_source: str = "-"
 
     @property
     def ready(self) -> bool:
@@ -76,6 +80,7 @@ def ensure_transport_ready(
             _managed_state_dir(root, config, transport),
             (),
             f"adopted existing {transport} transport",
+            provider_source="system-adopted",
         )
 
     if transport == "tor":
@@ -122,6 +127,7 @@ def transport_status(
             _managed_state_dir(root, config, transport),
             (),
             f"{transport} transport is running but not AMPB-owned",
+            provider_source="system-adopted",
         )
 
     return ManagedTransportResult(
@@ -149,6 +155,7 @@ def stop_managed_transport(
     endpoint = str(state.get("endpoint") or _endpoint_for(transport))
     state_dir = _managed_state_dir(root, config, transport)
     provider = str(state.get("provider") or "-")
+    provider_source = str(state.get("provider_source") or "-")
     command = tuple(str(part) for part in state.get("command", ()))
     pid = _state_pid(state)
 
@@ -163,6 +170,7 @@ def stop_managed_transport(
             state_dir,
             (),
             f"no AMPB-owned {transport} process is recorded",
+            provider_source=provider_source,
         )
 
     if not _pid_alive(pid):
@@ -181,6 +189,7 @@ def stop_managed_transport(
                 if cleaned
                 else f"could not remove stale AMPB-owned {transport} state"
             ),
+            provider_source=provider_source,
         )
 
     try:
@@ -196,6 +205,7 @@ def stop_managed_transport(
             state_dir,
             command,
             f"could not stop AMPB-owned {transport}: {exc}",
+            provider_source=provider_source,
         )
 
     deadline = time.monotonic() + wait_seconds
@@ -216,6 +226,7 @@ def stop_managed_transport(
                     if cleaned
                     else f"stopped AMPB-owned {transport} but could not remove state"
                 ),
+                provider_source=provider_source,
             )
         time.sleep(0.1)
 
@@ -229,6 +240,7 @@ def stop_managed_transport(
         state_dir,
         command,
         f"AMPB-owned {transport} did not stop before timeout",
+        provider_source=provider_source,
     )
 
 
@@ -273,6 +285,7 @@ def _start_tor(
             state_dir,
             command,
             f"managed {provider.kind} could not start: {exc}",
+            provider_source=provider.source,
         )
 
     if _wait_for_endpoint(endpoint, timeout_seconds=wait_seconds):
@@ -286,6 +299,7 @@ def _start_tor(
             state_dir,
             command,
             f"started managed {provider.kind} transport",
+            provider_source=provider.source,
         )
         _write_owned_state(root, config, result)
         return result
@@ -301,31 +315,49 @@ def _start_tor(
         state_dir,
         command,
         f"managed {provider.kind} did not become ready at {endpoint}",
+        provider_source=provider.source,
     )
 
 
 def _tor_provider(config: AppConfig) -> TorProvider | None:
-    arti_path = os.environ.get("AMPB_ARTI_BIN") or _bundled_arti_path()
+    arti_path = os.environ.get("AMPB_ARTI_BIN")
     if arti_path:
-        return TorProvider("arti", arti_path)
+        return TorProvider("arti", arti_path, "configured")
 
     tor_path = os.environ.get("AMPB_TOR_BIN")
     if tor_path:
-        return TorProvider("tor", tor_path)
+        return TorProvider("tor", tor_path, "configured")
 
     config_path = config.transport_binary("tor")
     if config_path:
-        return TorProvider(_infer_provider_kind(config_path), config_path)
+        return TorProvider(_infer_provider_kind(config_path), config_path, "configured")
+
+    bundled_arti = _bundled_arti_path()
+    if bundled_arti:
+        return TorProvider("arti", bundled_arti, "bundled-sidecar")
 
     system_tor = shutil.which("tor")
     if system_tor:
-        return TorProvider("tor", system_tor)
+        return TorProvider("tor", system_tor, "system-package")
     return None
 
 
 def _bundled_arti_path() -> str:
+    return _bundled_provider_path(ARTI_RELATIVE_PATH)
+
+
+def _bundled_i2pd_path() -> str:
+    return _bundled_provider_path(I2PD_RELATIVE_PATH)
+
+
+def _bundled_provider_path(relative_path: Path) -> str:
+    provider_root = os.environ.get("AMPB_PROVIDER_ROOT")
+    if provider_root:
+        candidate = Path(provider_root) / relative_path
+        if candidate.exists() and candidate.is_file():
+            return str(candidate)
     build_root = Path(os.environ.get("AMPB_BROWSER_BUILD_ROOT", "/tmp/ampb-browser-build"))
-    candidate = build_root / ARTI_RELATIVE_PATH
+    candidate = build_root / relative_path
     if candidate.exists() and candidate.is_file():
         return str(candidate)
     return ""
@@ -418,6 +450,7 @@ def _start_i2p(
             state_dir,
             command,
             f"managed {provider.kind} could not start: {exc}",
+            provider_source=provider.source,
         )
 
     if _wait_for_endpoint(endpoint, timeout_seconds=wait_seconds):
@@ -431,6 +464,7 @@ def _start_i2p(
             state_dir,
             command,
             f"started managed {provider.kind} transport",
+            provider_source=provider.source,
         )
         _write_owned_state(root, config, result)
         return result
@@ -446,25 +480,30 @@ def _start_i2p(
         state_dir,
         command,
         f"managed {provider.kind} did not become ready at {endpoint}",
+        provider_source=provider.source,
     )
 
 
 def _i2p_provider(config: AppConfig) -> I2PProvider | None:
     env_path = os.environ.get("AMPB_I2PD_BIN")
     if env_path:
-        return I2PProvider("i2pd", env_path)
+        return I2PProvider("i2pd", env_path, "configured")
 
     config_path = config.transport_binary("i2p")
     if config_path:
-        return I2PProvider("i2pd", config_path)
+        return I2PProvider("i2pd", config_path, "configured")
+
+    bundled_i2pd = _bundled_i2pd_path()
+    if bundled_i2pd:
+        return I2PProvider("i2pd", bundled_i2pd, "bundled-sidecar")
 
     system_i2pd = shutil.which("i2pd")
     if system_i2pd:
-        return I2PProvider("i2pd", system_i2pd)
+        return I2PProvider("i2pd", system_i2pd, "system-package")
 
     homebrew_i2pd = _homebrew_i2pd_path()
     if homebrew_i2pd:
-        return I2PProvider("i2pd", homebrew_i2pd)
+        return I2PProvider("i2pd", homebrew_i2pd, "system-package")
     return None
 
 
@@ -575,6 +614,7 @@ def _write_owned_state(root: Path, config: AppConfig, result: ManagedTransportRe
         "pid": result.pid,
         "state_dir": result.state_dir,
         "command": list(result.command),
+        "provider_source": result.provider_source,
         "started_at": int(time.time()),
     }
     state_path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -595,6 +635,7 @@ def _owned_transport_result(
 
     pid = _state_pid(state)
     provider = str(state.get("provider") or "-")
+    provider_source = str(state.get("provider_source") or "-")
     endpoint = str(state.get("endpoint") or _endpoint_for(transport))
     state_dir = str(state.get("state_dir") or _managed_state_dir(root, config, transport))
     command = tuple(str(part) for part in state.get("command", ()))
@@ -615,6 +656,7 @@ def _owned_transport_result(
                 if cleaned
                 else f"could not remove stale AMPB-owned {transport} state"
             ),
+            provider_source=provider_source,
         )
 
     if _wait_for_endpoint(endpoint, timeout_seconds=wait_seconds):
@@ -628,6 +670,7 @@ def _owned_transport_result(
             state_dir,
             command,
             f"using running AMPB-owned {transport}",
+            provider_source=provider_source,
         )
 
     return ManagedTransportResult(
@@ -640,6 +683,7 @@ def _owned_transport_result(
         state_dir,
         command,
         f"AMPB-owned {transport} process is running but endpoint is not ready",
+        provider_source=provider_source,
     )
 
 

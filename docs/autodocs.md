@@ -21,9 +21,9 @@ python3 -m ampbrowser docs generate --check
 
 Generated files live under `docs/generated/` and must not be edited by hand. They cover
 route rules, active transports, browser backend strategy, adapter contracts, candidate
-transports, and platform capabilities. Browser source trees, object directories, caches,
-and artifacts belong under `/tmp/ampb-browser-build` or another explicit external build
-workspace, not this repo.
+transports, provider sources, and platform capabilities. Browser source trees, object
+directories, caches, and artifacts belong under `/tmp/ampb-browser-build` or another
+explicit external build workspace, not this repo.
 
 ## Manual Docs
 

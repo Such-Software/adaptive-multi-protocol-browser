@@ -5,6 +5,7 @@ from pathlib import Path
 from .adapters import ADAPTERS
 from .candidates import CANDIDATE_TRANSPORTS
 from .metadata import BROWSER_BACKENDS, ROUTE_RULES, TRANSPORT_DEFINITIONS
+from .metadata import PROVIDER_SOURCE_DEFINITIONS, TRANSPORT_PROVIDER_DEFINITIONS
 from .platforms import PLATFORM_CAPABILITIES
 
 
@@ -19,6 +20,7 @@ def generate_docs(root: Path, *, check: bool = False) -> list[Path]:
         GENERATED_DIR / "candidate-transports.md": _candidate_transports_doc(),
         GENERATED_DIR / "platform-capabilities.md": _platform_capabilities_doc(),
         GENERATED_DIR / "browser-strategy.md": _browser_strategy_doc(),
+        GENERATED_DIR / "provider-sources.md": _provider_sources_doc(),
     }
     changed: list[Path] = []
     for rel_path, content in docs.items():
@@ -118,3 +120,28 @@ def _browser_strategy_doc() -> str:
             f"{backend.launch_mode} | {backend.privacy_posture} | {backend.note} |"
         )
     return _header("Generated Browser Strategy") + "\n".join(rows) + "\n"
+
+
+def _provider_sources_doc() -> str:
+    sections = [_header("Generated Provider Sources")]
+    sections.append("## Source Types\n")
+    sections.append("| Source | Discovery | Lifecycle | Platforms | Note |")
+    sections.append("| --- | --- | --- | --- | --- |")
+    for source in PROVIDER_SOURCE_DEFINITIONS:
+        sections.append(
+            f"| `{source.source}` | {source.discovery} | {source.lifecycle} | "
+            f"{source.platforms} | {source.note} |"
+        )
+    sections.append("")
+
+    sections.append("## Transport Providers\n")
+    sections.append("| Transport | Provider | Sources | Endpoint | Status | Note |")
+    sections.append("| --- | --- | --- | --- | --- | --- |")
+    for provider in TRANSPORT_PROVIDER_DEFINITIONS:
+        sources = ", ".join(f"`{source}`" for source in provider.sources)
+        sections.append(
+            f"| `{provider.transport}` | `{provider.provider}` | {sources} | "
+            f"`{provider.endpoint}` | `{provider.status}` | {provider.note} |"
+        )
+    sections.append("")
+    return "\n".join(sections)

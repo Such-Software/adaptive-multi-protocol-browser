@@ -27,6 +27,7 @@ class TransportManagerTest(unittest.TestCase):
 
         self.assertEqual("ready", result.status)
         self.assertEqual("-", result.provider)
+        self.assertEqual("system-adopted", result.provider_source)
         self.assertFalse(result.owned)
         self.assertTrue(result.ready)
         self.assertEqual(0, result.pid)
@@ -73,6 +74,7 @@ class TransportManagerTest(unittest.TestCase):
 
             self.assertEqual("started", result.status)
             self.assertEqual("arti", result.provider)
+            self.assertEqual("bundled-sidecar", result.provider_source)
             self.assertTrue(result.owned)
             self.assertEqual(1234, result.pid)
             self.assertEqual(str(root / ".ampb/transports/tor"), result.state_dir)
@@ -84,6 +86,7 @@ class TransportManagerTest(unittest.TestCase):
             state_path = root / ".ampb/transports/tor/ampb-owned.json"
             self.assertTrue(state_path.exists())
             self.assertIn('"provider": "arti"', state_path.read_text(encoding="utf-8"))
+            self.assertIn('"provider_source": "bundled-sidecar"', state_path.read_text(encoding="utf-8"))
             popen.assert_called_once()
 
     def test_reuses_recorded_ampb_owned_transport(self) -> None:
@@ -122,6 +125,7 @@ class TransportManagerTest(unittest.TestCase):
 
         self.assertEqual("ready", result.status)
         self.assertEqual("arti", result.provider)
+        self.assertEqual("-", result.provider_source)
         self.assertTrue(result.owned)
         self.assertEqual(1234, result.pid)
         popen.assert_not_called()
@@ -199,6 +203,7 @@ class TransportManagerTest(unittest.TestCase):
 
         self.assertEqual("started", result.status)
         self.assertEqual("tor", result.provider)
+        self.assertEqual("configured", result.provider_source)
         self.assertTrue(result.owned)
         self.assertEqual(1234, result.pid)
         self.assertEqual(str(root / ".ampb/transports/tor"), result.state_dir)
@@ -226,6 +231,7 @@ class TransportManagerTest(unittest.TestCase):
 
         self.assertEqual("start-failed", result.status)
         self.assertEqual("tor", result.provider)
+        self.assertEqual("configured", result.provider_source)
         self.assertFalse(result.ready)
         self.assertIn("could not start", result.message)
 
@@ -265,7 +271,8 @@ class TransportManagerTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             with patch("ampbrowser.transport_manager.shutil.which", return_value=None):
-                result = ensure_transport_ready("i2p", config=AppConfig(transport_modes={}), root=Path(tmp), status=status)
+                with patch("ampbrowser.transport_manager._bundled_i2pd_path", return_value=""):
+                    result = ensure_transport_ready("i2p", config=AppConfig(transport_modes={}), root=Path(tmp), status=status)
 
         self.assertEqual("missing-provider", result.status)
         self.assertFalse(result.ready)
@@ -298,14 +305,41 @@ class TransportManagerTest(unittest.TestCase):
                 return "/opt/homebrew/bin/brew" if name == "brew" else None
 
             with patch("ampbrowser.transport_manager.shutil.which", side_effect=which):
-                with patch("ampbrowser.transport_manager.subprocess.run", return_value=Result()):
+                with patch("ampbrowser.transport_manager._bundled_i2pd_path", return_value=""):
+                    with patch("ampbrowser.transport_manager.subprocess.run", return_value=Result()):
+                        with patch("ampbrowser.transport_manager._wait_for_endpoint", return_value=True):
+                            with patch("ampbrowser.transport_manager.subprocess.Popen") as popen:
+                                popen.return_value.pid = 1234
+                                result = ensure_transport_ready("i2p", config=AppConfig(transport_modes={}), root=root, status=status)
+
+        self.assertEqual("started", result.status)
+        self.assertEqual("system-package", result.provider_source)
+        self.assertEqual(str(i2pd), result.command[0])
+
+    def test_starts_bundled_i2pd_provider_before_system_provider(self) -> None:
+        status = TransportStatus(
+            transport="i2p",
+            installed=True,
+            running=False,
+            endpoint="http://127.0.0.1:4444",
+            adoptable=False,
+            manage_supported=True,
+            note="I2P HTTP proxy",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bundled = root / "providers/i2pd/bin/i2pd"
+            with patch("ampbrowser.transport_manager._bundled_i2pd_path", return_value=str(bundled)):
+                with patch("ampbrowser.transport_manager.shutil.which", return_value="/usr/bin/i2pd"):
                     with patch("ampbrowser.transport_manager._wait_for_endpoint", return_value=True):
                         with patch("ampbrowser.transport_manager.subprocess.Popen") as popen:
                             popen.return_value.pid = 1234
                             result = ensure_transport_ready("i2p", config=AppConfig(transport_modes={}), root=root, status=status)
 
         self.assertEqual("started", result.status)
-        self.assertEqual(str(i2pd), result.command[0])
+        self.assertEqual("bundled-sidecar", result.provider_source)
+        self.assertEqual(str(bundled), result.command[0])
 
     def test_starts_configured_i2pd_provider_with_ampb_state(self) -> None:
         status = TransportStatus(
@@ -328,6 +362,7 @@ class TransportManagerTest(unittest.TestCase):
 
             self.assertEqual("started", result.status)
             self.assertEqual("i2pd", result.provider)
+            self.assertEqual("configured", result.provider_source)
             self.assertTrue(result.owned)
             self.assertEqual(1234, result.pid)
             self.assertEqual(str(root / ".ampb/transports/i2p"), result.state_dir)
@@ -346,6 +381,7 @@ class TransportManagerTest(unittest.TestCase):
             state_path = root / ".ampb/transports/i2p/ampb-owned.json"
             self.assertTrue(state_path.exists())
             self.assertIn('"provider": "i2pd"', state_path.read_text(encoding="utf-8"))
+            self.assertIn('"provider_source": "configured"', state_path.read_text(encoding="utf-8"))
             popen.assert_called_once()
 
     def test_terminates_owned_i2pd_process_on_timeout(self) -> None:

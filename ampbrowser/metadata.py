@@ -31,6 +31,25 @@ class BrowserBackend:
     note: str
 
 
+@dataclass(frozen=True)
+class ProviderSourceDefinition:
+    source: str
+    discovery: str
+    lifecycle: str
+    platforms: str
+    note: str
+
+
+@dataclass(frozen=True)
+class TransportProviderDefinition:
+    transport: str
+    provider: str
+    sources: tuple[str, ...]
+    endpoint: str
+    status: str
+    note: str
+
+
 ROUTE_RULES = (
     RouteRule("*.onion", "tor", "tor", "route through Tor SOCKS"),
     RouteRule("*.i2p", "i2p", "i2p", "route through I2P HTTP proxy"),
@@ -123,5 +142,93 @@ BROWSER_BACKENDS = (
         "built-in fetch and render path",
         "no web engine or shared browser storage required",
         "Used for Gemini and similar lightweight document transports.",
+    ),
+)
+
+PROVIDER_SOURCE_DEFINITIONS = (
+    ProviderSourceDefinition(
+        "configured",
+        "explicit config or environment variable",
+        "operator override; AMPB owns profile policy but not the binary provenance",
+        "desktop, android, ios",
+        "Used for development, custom bundles, and reviewed advanced installs.",
+    ),
+    ProviderSourceDefinition(
+        "bundled-sidecar",
+        "provider binary shipped with AMPB or the build workspace",
+        "AMPB-owned process and isolated state",
+        "desktop, android",
+        "Default desktop target for Tor, I2P, IPFS, Reticulum, and similar daemon-style transports.",
+    ),
+    ProviderSourceDefinition(
+        "embedded-library",
+        "transport library linked into the app process",
+        "AMPB-owned foreground session and app-private state",
+        "android, ios",
+        "Preferred mobile shape when platform policy makes sidecar daemons awkward.",
+    ),
+    ProviderSourceDefinition(
+        "system-adopted",
+        "healthy local proxy or service already running",
+        "operator-owned service; AMPB only routes browser traffic to it",
+        "desktop, android",
+        "Keeps power users and existing deployments working without duplicate daemons.",
+    ),
+    ProviderSourceDefinition(
+        "system-package",
+        "known package manager install such as brew, apt, pkg, or platform provider",
+        "installed only after user consent, then run with AMPB-owned state",
+        "desktop, android",
+        "Fallback when the app did not ship that provider yet.",
+    ),
+    ProviderSourceDefinition(
+        "builtin-renderer",
+        "browser-native renderer or fetch path",
+        "AMPB-owned code path with no external daemon",
+        "desktop, android, ios",
+        "Used for Gemini and other lightweight document transports.",
+    ),
+)
+
+TRANSPORT_PROVIDER_DEFINITIONS = (
+    TransportProviderDefinition(
+        "tor",
+        "arti/tor",
+        ("configured", "bundled-sidecar", "embedded-library", "system-adopted", "system-package"),
+        "socks5://127.0.0.1:9050",
+        "active",
+        "Desktop uses managed Arti/Tor sidecars today; mobile should prefer embedded or app-owned foreground providers.",
+    ),
+    TransportProviderDefinition(
+        "i2p",
+        "i2pd/i2p-router",
+        ("configured", "bundled-sidecar", "embedded-library", "system-adopted", "system-package"),
+        "http://127.0.0.1:4444",
+        "active",
+        "Desktop can adopt or manage i2pd; mobile provider packaging is planned behind the same contract.",
+    ),
+    TransportProviderDefinition(
+        "gemini",
+        "gemini-native-viewer",
+        ("builtin-renderer",),
+        "builtin://gemtext-renderer",
+        "planned",
+        "No daemon is required once the built-in fetch/render path exists.",
+    ),
+    TransportProviderDefinition(
+        "ipfs",
+        "kubo/ipfs",
+        ("configured", "bundled-sidecar", "system-adopted", "system-package"),
+        "http://127.0.0.1:8080",
+        "planned",
+        "Content-addressed browsing uses the same provider lifecycle without treating IPFS as anonymity.",
+    ),
+    TransportProviderDefinition(
+        "reticulum",
+        "rnsd/rnstatus",
+        ("configured", "bundled-sidecar", "system-adopted", "system-package"),
+        "rns://local",
+        "planned",
+        "Reticulum browsing may still need operator-owned physical or link-layer interface setup.",
     ),
 )
