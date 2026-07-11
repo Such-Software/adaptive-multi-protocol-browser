@@ -23,6 +23,8 @@ class FixtureCheck:
     actual_transport: str
     expected_profile: str
     actual_profile: str
+    expected_isolation: str
+    actual_isolation: str
     tier: str
     identity: str
     payments: str
@@ -78,15 +80,19 @@ def _check_fixture(site_id: str, fixture: Any, path: Path) -> FixtureCheck:
         raise ValueError(f"{path}: {protocol}: missing checks table")
     expected_transport = _string(checks, "transport")
     expected_profile = _string(checks, "profile")
+    expected_isolation = _optional_string(checks, "isolation", "transport-profile")
     interaction = _interaction_policy(fixture)
     route_metadata = _route_metadata(fixture)
 
     route = route_url(url)
+    actual_isolation = "transport-profile" if route.profile == route.transport else "shared-profile"
     failures: list[str] = []
     if route.transport != expected_transport:
         failures.append(f"transport expected {expected_transport} got {route.transport}")
     if route.profile != expected_profile:
         failures.append(f"profile expected {expected_profile} got {route.profile}")
+    if actual_isolation != expected_isolation:
+        failures.append(f"isolation expected {expected_isolation} got {actual_isolation}")
     failures.extend(
         interaction_failures(
             expected_transport,
@@ -108,6 +114,8 @@ def _check_fixture(site_id: str, fixture: Any, path: Path) -> FixtureCheck:
         actual_transport=route.transport,
         expected_profile=expected_profile,
         actual_profile=route.profile,
+        expected_isolation=expected_isolation,
+        actual_isolation=actual_isolation,
         tier=interaction["tier"],
         identity=interaction["identity"],
         payments=interaction["payments"],

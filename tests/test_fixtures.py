@@ -26,7 +26,11 @@ class FixtureCheckTest(unittest.TestCase):
                             {
                                 "protocol": "tor",
                                 "url": "http://wownero.onion/",
-                                "checks": {"transport": "tor", "profile": "tor"},
+                                "checks": {
+                                    "transport": "tor",
+                                    "profile": "tor",
+                                    "isolation": "transport-profile",
+                                },
                             },
                             {
                                 "protocol": "ipfs",
@@ -45,6 +49,7 @@ class FixtureCheckTest(unittest.TestCase):
 
         self.assertTrue(result.ok)
         self.assertEqual(3, len(result.checks))
+        self.assertEqual("transport-profile", result.checks[1].actual_isolation)
         self.assertEqual("/snapshot/*", result.checks[2].route_match)
         self.assertEqual("/snapshot/", result.checks[2].fixture_path)
 

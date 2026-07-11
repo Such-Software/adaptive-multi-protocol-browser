@@ -34,13 +34,12 @@ adopted daemon from an AMPB-owned managed process.
 through a desktop dialog when possible, falls back to a terminal prompt when needed, and
 launches through the same transport runner after approval.
 
-`ampbrowser open <url> --route-aware --launch` creates a desktop convenience profile for
-clearnet, Tor, and I2P QA. The profile uses a PAC file for `.onion` and `.i2p` routing,
-installs the AMPB route-helper extension, and starts a token-gated loopback helper tied
-to the browser process. If a user clicks an alternate-network link before its local
-transport is ready, the extension shows a setup page and asks the helper to start the
-AMPB-managed transport after approval. This mode proves routing and first-use setup; it
-is not the final per-transport storage isolation model.
+`ampbrowser open <clearnet-url> --broker --launch` creates the desktop entry profile. The
+broker has direct clearnet networking and no mixed-transport PAC. Its extension cancels
+all `.onion` and `.i2p` requests before they leave the profile. For a top-level navigation,
+it asks a token-gated loopback helper to open the URL in the isolated Tor or I2P profile.
+Missing transports use the same first-use consent flow before the handoff. `--route-aware`
+remains a compatibility alias for `--broker`.
 
 ## Examples
 
@@ -51,7 +50,7 @@ python3 -m ampbrowser open http://example.b32.i2p/ --yes
 python3 -m ampbrowser open http://example.b32.i2p/ --config examples/config.toml
 python3 -m ampbrowser open http://example.b32.i2p/ --platform android
 python3 -m ampbrowser open https://wownero.org/ --launch
-python3 -m ampbrowser open https://ampgateway.site/ --route-aware --launch
+python3 -m ampbrowser open https://ampgateway.site/ --broker --launch
 python3 -m ampbrowser open http://example.onion/ --launch
 python3 -m ampbrowser open http://example.onion/ --yes --launch
 python3 -m ampbrowser shell http://example.onion/

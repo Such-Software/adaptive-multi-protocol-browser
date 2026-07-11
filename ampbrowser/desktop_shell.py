@@ -27,9 +27,17 @@ def launch_desktop_shell(
     config: AppConfig,
     root: Path,
     auto_approve: bool = False,
+    broker: bool = False,
     prompt_driver: PromptDriver | None = None,
 ) -> DesktopShellResult:
-    open_plan = prepare_open(raw_url, consent=False, dry_run=False, config=config, platform="desktop")
+    open_plan = prepare_open(
+        raw_url,
+        consent=False,
+        dry_run=False,
+        config=config,
+        platform="desktop",
+        broker=broker,
+    )
     prompt_shown = False
     prompt_approved = False
 
@@ -45,7 +53,14 @@ def launch_desktop_shell(
                 prompt_shown,
                 False,
             )
-        open_plan = prepare_open(raw_url, consent=True, dry_run=False, config=config, platform="desktop")
+        open_plan = prepare_open(
+            raw_url,
+            consent=True,
+            dry_run=False,
+            config=config,
+            platform="desktop",
+            broker=broker,
+        )
 
     return DesktopShellResult(
         launch_open_plan(open_plan, config=config, root=root),

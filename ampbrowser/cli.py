@@ -41,9 +41,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Approve first-use setup in the dry-run plan.",
     )
     open_parser.add_argument(
+        "--broker",
         "--route-aware",
+        dest="broker",
         action="store_true",
-        help="Launch one desktop profile with PAC routing for clearnet, Tor, and I2P.",
+        help="Launch a clearnet broker that hands Tor and I2P routes to isolated profiles.",
     )
     open_mode = open_parser.add_mutually_exclusive_group()
     open_mode.add_argument(
@@ -65,6 +67,11 @@ def main(argv: list[str] | None = None) -> int:
         "--yes",
         action="store_true",
         help="Approve first-use setup without showing a prompt.",
+    )
+    shell_parser.add_argument(
+        "--broker",
+        action="store_true",
+        help="Launch the isolated transport broker in the bundled browser.",
     )
 
     subcommands.add_parser("inspect", help="Inspect local transport readiness.")
@@ -116,10 +123,10 @@ def main(argv: list[str] | None = None) -> int:
                 launch=args.launch,
                 config_path=args.config,
                 platform=args.platform,
-                route_aware=args.route_aware,
+                broker=args.broker,
             )
         if args.command == "shell":
-            return _cmd_shell(args.url, approve=args.yes, config_path=args.config)
+            return _cmd_shell(args.url, approve=args.yes, broker=args.broker, config_path=args.config)
         if args.command == "inspect":
             return _cmd_inspect()
         if args.command == "transport":
@@ -182,7 +189,7 @@ def _cmd_open(
     launch: bool,
     config_path: Path | None,
     platform: str | None,
-    route_aware: bool,
+    broker: bool,
 ) -> int:
     config = load_config(Path.cwd(), config_path)
     open_plan = prepare_open(
@@ -191,7 +198,7 @@ def _cmd_open(
         dry_run=dry_run,
         config=config,
         platform=platform,
-        route_aware=route_aware,
+        broker=broker,
     )
     if launch:
         open_plan = launch_open_plan(open_plan, config=config, root=Path.cwd())
@@ -199,9 +206,9 @@ def _cmd_open(
     return 0
 
 
-def _cmd_shell(url: str, *, approve: bool, config_path: Path | None) -> int:
+def _cmd_shell(url: str, *, approve: bool, broker: bool, config_path: Path | None) -> int:
     config = load_config(Path.cwd(), config_path)
-    result = launch_desktop_shell(url, config=config, root=Path.cwd(), auto_approve=approve)
+    result = launch_desktop_shell(url, config=config, root=Path.cwd(), auto_approve=approve, broker=broker)
     _print_open_plan(
         "AMPBROWSER_SHELL",
         result.open_plan,
@@ -220,8 +227,7 @@ def _print_open_plan(prefix: str, open_plan, extra_fields: tuple[str, ...] = ())
     launch_command = shlex.join(launch_spec.command) if launch_spec else "-"
     runtime_path = launch_spec.runtime_path if launch_spec else "-"
     user_js_path = launch_spec.user_js_path if launch_spec else "-"
-    route_aware = str(bool(launch_spec and launch_spec.route_aware)).lower()
-    pac_path = launch_spec.pac_path if launch_spec else "-"
+    broker = str(open_plan.broker).lower()
     message = _safe(open_plan.message)
     extra = (" " + " ".join(extra_fields)) if extra_fields else ""
     print(
@@ -240,10 +246,9 @@ def _print_open_plan(prefix: str, open_plan, extra_fields: tuple[str, ...] = ())
         f"browser_pid={open_plan.browser_pid} "
         f"profile_path={open_plan.profile_path} "
         f"proxy={open_plan.proxy} "
-        f"route_aware={route_aware} "
+        f"broker={broker} "
         f"runtime_path={runtime_path} "
         f"user_js_path={user_js_path} "
-        f"pac_path={pac_path} "
         f"setup_prompt_title=\"{_safe(open_plan.setup_prompt_title)}\" "
         f"setup_prompt_body=\"{_safe(open_plan.setup_prompt_body)}\" "
         f"setup_prompt_approve_label=\"{_safe(open_plan.setup_prompt_approve_label)}\" "
@@ -351,6 +356,8 @@ def _cmd_fixture(args) -> int:
                 f"actual_transport={check.actual_transport} "
                 f"expected_profile={check.expected_profile} "
                 f"actual_profile={check.actual_profile} "
+                f"expected_isolation={check.expected_isolation} "
+                f"actual_isolation={check.actual_isolation} "
                 f"tier={check.tier} "
                 f"identity={check.identity} "
                 f"payments={check.payments} "

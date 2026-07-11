@@ -21,8 +21,8 @@ capabilities they exercise, while project-specific target notes stay in private 
 - Prompt on first visit before installing or starting a missing transport.
 - Manage approved transports through isolated AMPB state.
 - Keep browser profiles isolated by transport.
-- Treat route-aware desktop launches as a convenience and QA mode until storage isolation
-  is proven for mixed clearnet, Tor, and I2P navigation.
+- Hand alternate-network links from the clearnet broker to transport-specific browser
+  profiles before the destination request leaves the broker profile.
 - Present transport health in plain language.
 
 ## Non-goals
@@ -41,7 +41,7 @@ python3 -m ampbrowser route ipfs://bafyexample/
 python3 -m ampbrowser inspect
 python3 -m ampbrowser plan gemini://wownero.org/
 python3 -m ampbrowser open https://wownero.org/
-python3 -m ampbrowser open https://ampgateway.site/ --route-aware --launch
+python3 -m ampbrowser open https://ampgateway.site/ --broker --launch
 python3 -m ampbrowser open http://example.onion/ --launch
 python3 -m ampbrowser open http://example.onion/ --yes --launch
 python3 -m ampbrowser shell http://example.onion/
@@ -67,6 +67,7 @@ python3 -m unittest discover -s tests
 
 - [Architecture](docs/architecture.md)
 - [Browser builds](docs/browser-builds.md)
+- [Transport broker](docs/broker.md)
 - [Candidate transports](docs/candidate-transports.md)
 - [Configuration](docs/configuration.md)
 - [Desktop vertical](docs/desktop-vertical.md)

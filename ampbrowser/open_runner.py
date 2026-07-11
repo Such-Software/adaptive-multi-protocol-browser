@@ -29,4 +29,4 @@ def launch_open_plan(open_plan: OpenPlan, *, config: AppConfig, root: Path) -> O
             transport_setup_endpoint=transport_result.endpoint,
             transport_setup_message=transport_result.message,
         )
-    return execute_open(open_plan, root=root)
+    return execute_open(open_plan, root=root, config=config)

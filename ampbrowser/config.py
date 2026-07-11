@@ -22,6 +22,7 @@ class ConfigError(ValueError):
 
 @dataclass(frozen=True)
 class AppConfig:
+    config_path: str = ""
     state_dir: str = ".ampb"
     default_engine: str = "ampb-gecko"
     runtime_path: str = ""
@@ -82,6 +83,7 @@ def _parse_config(data: dict[str, Any], path: Path) -> AppConfig:
     transport_binaries = _transport_binaries(transports, path)
 
     return AppConfig(
+        config_path=str(path.resolve()),
         state_dir=state_dir,
         default_engine=default_engine,
         runtime_path=runtime_path,

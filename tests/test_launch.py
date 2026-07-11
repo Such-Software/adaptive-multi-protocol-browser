@@ -6,11 +6,22 @@ import tempfile
 from pathlib import Path
 
 from ampbrowser.config import AppConfig
-from ampbrowser.launch import RouteHelperLaunch, execute_open, prepare_open
+from ampbrowser.launch import RouteHelperLaunch, _route_helper_command, execute_open, prepare_open
 from ampbrowser.transports import TransportStatus
 
 
 class PrepareOpenTest(unittest.TestCase):
+    def test_route_helper_command_preserves_selected_config(self) -> None:
+        command = _route_helper_command(
+            root=Path("/tmp/ampb-root"),
+            port=44001,
+            token="test-token",
+            watch_pid=9876,
+            config_path=Path("/tmp/ampb-config.toml"),
+        )
+
+        self.assertEqual(("--config", "/tmp/ampb-config.toml"), command[-2:])
+
     def test_clearnet_is_ready_without_consent(self) -> None:
         config = AppConfig(runtime_path="/opt/ampb/firefox", transport_modes={})
 
@@ -130,25 +141,25 @@ class PrepareOpenTest(unittest.TestCase):
             self.assertTrue(user_js.exists())
             self.assertIn('user_pref("network.proxy.type", 0);', user_js.read_text(encoding="utf-8"))
 
-    def test_route_aware_open_writes_pac_profile(self) -> None:
+    def test_broker_open_writes_direct_profile_and_handoff_extension(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             runtime = root / "firefox"
             runtime.write_text("#!/bin/sh\n", encoding="utf-8")
             config = AppConfig(runtime_path=str(runtime), transport_modes={})
-            plan = prepare_open("https://ampgateway.site/", config=config, route_aware=True)
+            plan = prepare_open("https://ampgateway.site/", config=config, broker=True)
 
-            self.assertEqual(".ampb/profiles/route-aware", plan.profile_path)
+            self.assertEqual(".ampb/profiles/broker", plan.profile_path)
             self.assertIsNotNone(plan.launch_spec)
-            self.assertTrue(plan.launch_spec.route_aware)
-            self.assertEqual(".ampb/profiles/route-aware/ampb-proxy.pac", plan.launch_spec.pac_path)
-            self.assertIn('user_pref("network.proxy.type", 2);', plan.launch_spec.prefs)
-            self.assertIn("__AMPB_ROUTE_AWARE_PAC_URL__", "\n".join(plan.launch_spec.prefs))
+            self.assertTrue(plan.launch_spec.broker)
+            self.assertIn('user_pref("network.proxy.type", 0);', plan.launch_spec.prefs)
 
+            planned_helper = RouteHelperLaunch("planned", endpoint="http://127.0.0.1:44001/", token="test-token")
             helper = RouteHelperLaunch("started", endpoint="http://127.0.0.1:44001/", token="test-token", pid=4321)
-            with patch("ampbrowser.launch._start_route_helper", return_value=helper):
-                with patch("ampbrowser.launch.subprocess.Popen") as popen:
-                    launched = execute_open(plan, root=root)
+            with patch("ampbrowser.launch._route_helper_launch_plan", return_value=planned_helper):
+                with patch("ampbrowser.launch._start_route_helper", return_value=helper):
+                    with patch("ampbrowser.launch.subprocess.Popen") as popen:
+                        launched = execute_open(plan, root=root)
 
             self.assertEqual("launched", launched.status)
             self.assertEqual("started", launched.route_helper_status)
@@ -159,33 +170,39 @@ class PrepareOpenTest(unittest.TestCase):
                     str(runtime),
                     "--new-instance",
                     "--profile",
-                    str(root / ".ampb/profiles/route-aware"),
+                    str(root / ".ampb/profiles/broker"),
                     "https://ampgateway.site/",
                 ),
                 cwd=str(root),
                 start_new_session=True,
             )
-            profile = root / ".ampb/profiles/route-aware"
+            profile = root / ".ampb/profiles/broker"
             user_js = (profile / "user.js").read_text(encoding="utf-8")
-            pac = (profile / "ampb-proxy.pac").read_text(encoding="utf-8")
-            self.assertIn((profile / "ampb-proxy.pac").resolve().as_uri(), user_js)
-            self.assertNotIn("__AMPB_ROUTE_AWARE_PAC_URL__", user_js)
-            self.assertIn('hasSuffix(h, ".onion")', pac)
-            self.assertIn('return "SOCKS5 127.0.0.1:9050";', pac)
-            self.assertIn('hasSuffix(h, ".i2p")', pac)
-            self.assertIn('return "PROXY 127.0.0.1:4444";', pac)
-            self.assertIn('return "DIRECT";', pac)
+            self.assertIn('user_pref("network.proxy.type", 0);', user_js)
+            self.assertFalse((profile / "ampb-proxy.pac").exists())
             extension = profile / "extensions/ampb-route-helper@such.software"
             manifest = (extension / "manifest.json").read_text(encoding="utf-8")
             background = (extension / "background.js").read_text(encoding="utf-8")
             setup = (extension / "setup.html").read_text(encoding="utf-8")
-            self.assertIn("webNavigation", manifest)
+            self.assertIn("webRequestBlocking", manifest)
+            self.assertIn("http://*.onion/*", manifest)
+            self.assertIn("wss://*.i2p/*", manifest)
+            self.assertIn("cancel: true", background)
+            self.assertIn("helper('open'", background)
             self.assertIn("install_command", background)
             self.assertIn("http://127.0.0.1:", background)
             self.assertNotIn("__AMPB_ROUTE_HELPER_URL__", background)
             self.assertNotIn("__AMPB_ROUTE_HELPER_TOKEN__", background)
             self.assertIn("Set Up Transport", setup)
             self.assertIn("install-command", setup)
+            self.assertTrue((extension / "handoff.html").exists())
+
+    def test_broker_entry_rejects_alternate_transport_url(self) -> None:
+        plan = prepare_open("http://example.onion/", broker=True)
+
+        self.assertEqual("blocked", plan.status)
+        self.assertEqual(".ampb/profiles/broker", plan.profile_path)
+        self.assertIn("broker entry URLs must use clearnet", plan.message)
 
     def test_execute_open_blocks_when_runtime_is_missing(self) -> None:
         config = AppConfig(runtime_path="/missing/ampb/firefox", transport_modes={})
@@ -196,21 +213,50 @@ class PrepareOpenTest(unittest.TestCase):
         self.assertEqual("runtime-missing", launched.status)
         self.assertIn("browser runtime not found", launched.message)
 
-    def test_route_aware_launch_stops_helper_when_browser_exits_immediately(self) -> None:
+    def test_execute_open_reuses_recorded_profile_process(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             runtime = root / "firefox"
             runtime.write_text("#!/bin/sh\n", encoding="utf-8")
             config = AppConfig(runtime_path=str(runtime), transport_modes={})
-            plan = prepare_open("https://ampgateway.site/", config=config, route_aware=True)
+            plan = prepare_open("https://example.com/", config=config)
+
+            with patch("ampbrowser.launch._active_profile_session", return_value=4321):
+                with patch("ampbrowser.launch.subprocess.Popen") as popen:
+                    popen.return_value.poll.return_value = 0
+                    opened = execute_open(plan, root=root)
+
+        self.assertEqual("opened-existing", opened.status)
+        self.assertEqual(4321, opened.browser_pid)
+        popen.assert_called_once_with(
+            (
+                str(runtime),
+                "--profile",
+                str(root / ".ampb/profiles/clearnet"),
+                "--new-tab",
+                "https://example.com/",
+            ),
+            cwd=str(root),
+            start_new_session=True,
+        )
+
+    def test_broker_launch_stops_helper_when_browser_exits_immediately(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            runtime = root / "firefox"
+            runtime.write_text("#!/bin/sh\n", encoding="utf-8")
+            config = AppConfig(runtime_path=str(runtime), transport_modes={})
+            plan = prepare_open("https://ampgateway.site/", config=config, broker=True)
+            planned_helper = RouteHelperLaunch("planned", endpoint="http://127.0.0.1:44001/", token="test-token")
             helper = RouteHelperLaunch("started", endpoint="http://127.0.0.1:44001/", token="test-token", pid=4321)
 
-            with patch("ampbrowser.launch._start_route_helper", return_value=helper):
-                with patch("ampbrowser.launch._stop_route_helper", return_value="stopped") as stop_helper:
-                    with patch("ampbrowser.launch.subprocess.Popen") as popen:
-                        popen.return_value.pid = 9876
-                        popen.return_value.poll.return_value = 1
-                        launched = execute_open(plan, root=root)
+            with patch("ampbrowser.launch._route_helper_launch_plan", return_value=planned_helper):
+                with patch("ampbrowser.launch._start_route_helper", return_value=helper):
+                    with patch("ampbrowser.launch._stop_route_helper", return_value="stopped") as stop_helper:
+                        with patch("ampbrowser.launch.subprocess.Popen") as popen:
+                            popen.return_value.pid = 9876
+                            popen.return_value.poll.return_value = 1
+                            launched = execute_open(plan, root=root)
 
         self.assertEqual("browser-exited", launched.status)
         self.assertEqual(9876, launched.browser_pid)
@@ -218,20 +264,22 @@ class PrepareOpenTest(unittest.TestCase):
         self.assertIn("browser exited immediately", launched.message)
         stop_helper.assert_called_once_with(helper)
 
-    def test_route_aware_launch_starts_helper_with_browser_pid(self) -> None:
+    def test_broker_launch_starts_helper_with_browser_pid(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             runtime = root / "firefox"
             runtime.write_text("#!/bin/sh\n", encoding="utf-8")
             config = AppConfig(runtime_path=str(runtime), transport_modes={})
-            plan = prepare_open("https://ampgateway.site/", config=config, route_aware=True)
+            plan = prepare_open("https://ampgateway.site/", config=config, broker=True)
+            planned_helper = RouteHelperLaunch("planned", endpoint="http://127.0.0.1:44001/", token="test-token")
             helper = RouteHelperLaunch("started", endpoint="http://127.0.0.1:44001/", token="test-token", pid=4321)
 
-            with patch("ampbrowser.launch._start_route_helper", return_value=helper) as start_helper:
-                with patch("ampbrowser.launch.subprocess.Popen") as popen:
-                    popen.return_value.pid = 9876
-                    popen.return_value.poll.return_value = None
-                    launched = execute_open(plan, root=root)
+            with patch("ampbrowser.launch._route_helper_launch_plan", return_value=planned_helper):
+                with patch("ampbrowser.launch._start_route_helper", return_value=helper) as start_helper:
+                    with patch("ampbrowser.launch.subprocess.Popen") as popen:
+                        popen.return_value.pid = 9876
+                        popen.return_value.poll.return_value = None
+                        launched = execute_open(plan, root=root)
 
         self.assertEqual("launched", launched.status)
         start_helper.assert_called_once()

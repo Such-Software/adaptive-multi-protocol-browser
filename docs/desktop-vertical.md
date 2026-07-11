@@ -27,9 +27,10 @@ artifacts are available for the selected checkout.
 ## Transport Path
 
 The first transport target is Tor through an AMPB-owned Arti/Tor runtime. The current
-desktop vertical can launch a bundled Gecko runtime, start a route-aware helper, and keep
-the helper tied to the browser process. I2P uses the same route, consent, state, and
-health-check model. Reticulum follows after the resilient-network adapter is concrete.
+desktop vertical can launch a bundled Gecko runtime, start the isolated transport broker,
+and keep its token-gated helper tied to the broker process. Tor and I2P destinations launch
+in their own browser profiles after route validation and consent. Reticulum follows after
+the resilient-network adapter and renderer handoff are concrete.
 
 ## Desktop Shell
 
@@ -41,4 +42,5 @@ approval. Use `--yes` for scripted verification without showing the dialog.
 ```sh
 python3 -m ampbrowser shell http://example.onion/
 python3 -m ampbrowser shell http://example.onion/ --yes
+python3 -m ampbrowser shell https://ampgateway.site/ --broker
 ```

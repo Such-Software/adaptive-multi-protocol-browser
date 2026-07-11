@@ -19,12 +19,11 @@ from .config import AppConfig, default_config
 from .plan import BrowsePlan, plan_url
 
 
-ROUTE_AWARE_PROFILE = "route-aware"
-ROUTE_AWARE_PAC_NAME = "ampb-proxy.pac"
+BROKER_PROFILE = "broker"
 ROUTE_HELPER_EXTENSION_ID = "ampb-route-helper@such.software"
-PAC_URL_PLACEHOLDER = "__AMPB_ROUTE_AWARE_PAC_URL__"
 HELPER_URL_PLACEHOLDER = "__AMPB_ROUTE_HELPER_URL__"
 HELPER_TOKEN_PLACEHOLDER = "__AMPB_ROUTE_HELPER_TOKEN__"
+PROFILE_SESSION_NAME = "ampb-session.json"
 
 
 @dataclass(frozen=True)
@@ -51,9 +50,7 @@ class BrowserLaunchSpec:
     user_js_path: str
     command: tuple[str, ...]
     prefs: tuple[str, ...]
-    route_aware: bool = False
-    pac_path: str = "-"
-    pac_content: str = ""
+    broker: bool = False
     extension_path: str = "-"
     extension_assets: tuple[ProfileAsset, ...] = ()
 
@@ -68,6 +65,7 @@ class OpenPlan:
     proxy: str
     setup_steps: tuple[str, ...]
     message: str
+    broker: bool = False
     launch_spec: BrowserLaunchSpec | None = None
     browser_pid: int = 0
     setup_prompt_title: str = "-"
@@ -94,18 +92,32 @@ def prepare_open(
     dry_run: bool = True,
     config: AppConfig | None = None,
     platform: str | None = None,
+    broker: bool = False,
     route_aware: bool = False,
 ) -> OpenPlan:
     config = config or default_config()
     browse_plan = plan_url(raw_url, config=config, platform=platform)
+    broker = broker or route_aware
+    if broker and browse_plan.route.transport != "clearnet":
+        return OpenPlan(
+            browse_plan=browse_plan,
+            status="blocked",
+            dry_run=dry_run,
+            consent_granted=consent,
+            profile_path=config.profile_path(BROKER_PROFILE),
+            proxy="-",
+            setup_steps=(),
+            message="broker entry URLs must use clearnet; alternate routes open in their isolated profile",
+            broker=True,
+        )
     profile_name = (
-        ROUTE_AWARE_PROFILE
-        if route_aware and browse_plan.route.transport in {"clearnet", "tor", "i2p"}
+        BROKER_PROFILE
+        if broker
         else browse_plan.route.profile
     )
     profile_path = config.profile_path(profile_name)
     proxy = _proxy_for(browse_plan)
-    launch_spec = _launch_spec_for(browse_plan, config=config, profile_path=profile_path, route_aware=route_aware)
+    launch_spec = _launch_spec_for(browse_plan, config=config, profile_path=profile_path, broker=broker)
 
     if browse_plan.action.startswith("blocked"):
         return OpenPlan(
@@ -117,12 +129,13 @@ def prepare_open(
             proxy=proxy,
             setup_steps=(),
             message=browse_plan.action,
+            broker=broker,
             launch_spec=launch_spec,
         )
 
     if browse_plan.requires_consent:
         setup_steps = _setup_steps(browse_plan)
-        setup_prompt = _setup_prompt(browse_plan, setup_steps, route_aware=route_aware)
+        setup_prompt = _setup_prompt(browse_plan, setup_steps)
         if not consent:
             return OpenPlan(
                 browse_plan=browse_plan,
@@ -133,6 +146,7 @@ def prepare_open(
                 proxy=proxy,
                 setup_steps=setup_steps,
                 message=browse_plan.prompt,
+                broker=broker,
                 launch_spec=launch_spec,
                 setup_prompt_title=setup_prompt.title,
                 setup_prompt_body=setup_prompt.body,
@@ -148,6 +162,7 @@ def prepare_open(
             proxy=proxy,
             setup_steps=setup_steps,
             message="first-use setup approved; browser launch waits for transport readiness",
+            broker=broker,
             launch_spec=launch_spec,
             setup_prompt_title=setup_prompt.title,
             setup_prompt_body=setup_prompt.body,
@@ -164,11 +179,17 @@ def prepare_open(
         proxy=proxy,
         setup_steps=(),
         message="ready to open with isolated profile",
+        broker=broker,
         launch_spec=launch_spec,
     )
 
 
-def execute_open(open_plan: OpenPlan, *, root: Path | None = None) -> OpenPlan:
+def execute_open(
+    open_plan: OpenPlan,
+    *,
+    root: Path | None = None,
+    config: AppConfig | None = None,
+) -> OpenPlan:
     root = root or Path.cwd()
     spec = open_plan.launch_spec
     if spec is None:
@@ -194,17 +215,31 @@ def execute_open(open_plan: OpenPlan, *, root: Path | None = None) -> OpenPlan:
             message=f"browser runtime not found: {spec.runtime_path}",
         )
 
-    route_helper = _route_helper_launch_plan(root) if spec.route_aware else RouteHelperLaunch("disabled")
+    active_pid = _active_profile_session(root, spec)
+    if active_pid:
+        return _open_existing_profile(open_plan, root=root, spec=spec, active_pid=active_pid)
+
+    config_path = Path(config.config_path) if config and config.config_path else None
+    route_helper = (
+        _route_helper_launch_plan(root, config_path=config_path)
+        if spec.broker
+        else RouteHelperLaunch("disabled")
+    )
     _write_profile(root, spec, route_helper=route_helper)
     launch_spec = replace(spec, command=_execution_command(root, spec))
     process = subprocess.Popen(launch_spec.command, cwd=str(root), start_new_session=True)  # noqa: S603
-    if spec.route_aware:
-        route_helper = _start_route_helper(root, planned=route_helper, watch_pid=process.pid)
+    if spec.broker:
+        route_helper = _start_route_helper(
+            root,
+            planned=route_helper,
+            watch_pid=process.pid,
+            config_path=config_path,
+        )
     exit_code = _immediate_exit_code(process)
     if exit_code is not None:
         helper_status = route_helper.status
         helper_message = route_helper.message
-        if spec.route_aware:
+        if spec.broker:
             helper_status = _stop_route_helper(route_helper)
             helper_message = "stopped route helper after browser exited immediately"
         return replace(
@@ -219,9 +254,10 @@ def execute_open(open_plan: OpenPlan, *, root: Path | None = None) -> OpenPlan:
             route_helper_pid=route_helper.pid,
             route_helper_message=helper_message,
         )
+    _record_profile_session(root, spec, process.pid)
     message = "launched bundled browser"
-    if spec.route_aware:
-        message = f"launched bundled browser with route helper {route_helper.status}"
+    if spec.broker:
+        message = f"launched isolated transport broker with route helper {route_helper.status}"
     return replace(
         open_plan,
         dry_run=False,
@@ -274,7 +310,7 @@ class _SetupPrompt:
     approval_command: str
 
 
-def _setup_prompt(browse_plan: BrowsePlan, setup_steps: tuple[str, ...], *, route_aware: bool = False) -> _SetupPrompt:
+def _setup_prompt(browse_plan: BrowsePlan, setup_steps: tuple[str, ...]) -> _SetupPrompt:
     transport = browse_plan.route.transport
     label = _transport_label(transport)
     platform = browse_plan.platform_capability.platform
@@ -297,8 +333,6 @@ def _setup_prompt(browse_plan: BrowsePlan, setup_steps: tuple[str, ...], *, rout
         f"{browse_plan.route.normalized}. Setup plan: {setup_summary}."
     )
     approval_args = ["ampbrowser", "open", browse_plan.route.normalized, "--yes", "--launch"]
-    if route_aware:
-        approval_args.append("--route-aware")
     approval_command = shlex.join(approval_args)
     return _SetupPrompt(
         title=f"Set up {label}?",
@@ -324,27 +358,23 @@ def _launch_spec_for(
     *,
     config: AppConfig,
     profile_path: str,
-    route_aware: bool = False,
+    broker: bool = False,
 ) -> BrowserLaunchSpec | None:
     if browse_plan.route.transport not in {"clearnet", "tor", "i2p"}:
         return None
     runtime_path = _runtime_path(config)
     user_js_path = str(Path(profile_path) / "user.js")
     command = (runtime_path, "--new-instance", "--profile", profile_path, browse_plan.route.normalized)
-    prefs = _prefs_for(browse_plan, route_aware=route_aware)
-    pac_path = str(Path(profile_path) / ROUTE_AWARE_PAC_NAME) if route_aware else "-"
-    pac_content = _route_aware_pac() if route_aware else ""
-    extension_path = str(Path(profile_path) / "extensions" / ROUTE_HELPER_EXTENSION_ID) if route_aware else "-"
-    extension_assets = _route_helper_extension_assets(extension_path) if route_aware else ()
+    prefs = _prefs_for(browse_plan, broker=broker)
+    extension_path = str(Path(profile_path) / "extensions" / ROUTE_HELPER_EXTENSION_ID) if broker else "-"
+    extension_assets = _route_helper_extension_assets(extension_path) if broker else ()
     return BrowserLaunchSpec(
         runtime_path=runtime_path,
         profile_path=profile_path,
         user_js_path=user_js_path,
         command=command,
         prefs=prefs,
-        route_aware=route_aware,
-        pac_path=pac_path,
-        pac_content=pac_content,
+        broker=broker,
         extension_path=extension_path,
         extension_assets=extension_assets,
     )
@@ -372,7 +402,7 @@ def _runtime_candidates(build_root: Path) -> tuple[Path, ...]:
     )
 
 
-def _prefs_for(browse_plan: BrowsePlan, *, route_aware: bool = False) -> tuple[str, ...]:
+def _prefs_for(browse_plan: BrowsePlan, *, broker: bool = False) -> tuple[str, ...]:
     prefs: list[tuple[str, str | int | bool]] = [
         ("browser.shell.checkDefaultBrowser", False),
         ("datareporting.policy.dataSubmissionEnabled", False),
@@ -381,14 +411,10 @@ def _prefs_for(browse_plan: BrowsePlan, *, route_aware: bool = False) -> tuple[s
         ("network.predictor.enabled", False),
     ]
 
-    if route_aware:
+    if broker:
         prefs.extend(
             [
-                ("network.proxy.type", 2),
-                ("network.proxy.autoconfig_url", PAC_URL_PLACEHOLDER),
-                ("network.proxy.failover_direct", False),
-                ("network.proxy.socks_remote_dns", True),
-                ("network.proxy.no_proxies_on", ""),
+                ("network.proxy.type", 0),
                 ("extensions.autoDisableScopes", 0),
                 ("extensions.enabledScopes", 5),
                 ("xpinstall.signatures.required", False),
@@ -427,52 +453,6 @@ def _prefs_for(browse_plan: BrowsePlan, *, route_aware: bool = False) -> tuple[s
     return tuple(_format_pref(name, value) for name, value in prefs)
 
 
-def _route_aware_pac() -> str:
-    tor_proxy = _pac_proxy_for_endpoint(
-        "SOCKS5",
-        _endpoint_for_transport("tor", "socks5://127.0.0.1:9050"),
-    )
-    i2p_proxy = _pac_proxy_for_endpoint(
-        "PROXY",
-        _endpoint_for_transport("i2p", "http://127.0.0.1:4444"),
-    )
-    return "\n".join(
-        (
-            "// Managed by AMPB. Route-aware proxy policy.",
-            "function hasSuffix(value, suffix) {",
-            "  return value.length >= suffix.length && value.substring(value.length - suffix.length) === suffix;",
-            "}",
-            "",
-            "function FindProxyForURL(url, host) {",
-            '  var h = (host || "").toLowerCase();',
-            '  if (h.length > 0 && h.charAt(h.length - 1) === ".") {',
-            "    h = h.substring(0, h.length - 1);",
-            "  }",
-            '  if (hasSuffix(h, ".onion")) {',
-            f'    return "{tor_proxy}";',
-            "  }",
-            '  if (hasSuffix(h, ".i2p")) {',
-            f'    return "{i2p_proxy}";',
-            "  }",
-            '  return "DIRECT";',
-            "}",
-            "",
-        )
-    )
-
-
-def _endpoint_for_transport(transport: str, fallback: str) -> str:
-    adapter = adapter_for(transport)
-    if adapter:
-        return adapter.endpoint
-    return fallback
-
-
-def _pac_proxy_for_endpoint(proxy_type: str, endpoint: str) -> str:
-    host, port = _endpoint_host_port(endpoint)
-    return f"{proxy_type} {host}:{port}"
-
-
 def _route_helper_extension_assets(extension_path: str) -> tuple[ProfileAsset, ...]:
     base = Path(extension_path)
     return (
@@ -481,6 +461,8 @@ def _route_helper_extension_assets(extension_path: str) -> tuple[ProfileAsset, .
         ProfileAsset(str(base / "setup.html"), _route_helper_setup_html()),
         ProfileAsset(str(base / "setup.js"), _route_helper_setup_js()),
         ProfileAsset(str(base / "setup.css"), _route_helper_setup_css()),
+        ProfileAsset(str(base / "handoff.html"), _route_helper_handoff_html()),
+        ProfileAsset(str(base / "handoff.js"), _route_helper_handoff_js()),
     )
 
 
@@ -490,11 +472,20 @@ def _route_helper_manifest() -> str:
             "manifest_version": 2,
             "name": "AMPB Route Helper",
             "version": "0.1.0",
-            "description": "Starts AMPB-managed transports when alternate-network links are opened.",
+            "description": "Hands alternate-network links to isolated AMPB transport profiles.",
             "applications": {"gecko": {"id": ROUTE_HELPER_EXTENSION_ID}},
             "permissions": [
                 "tabs",
-                "webNavigation",
+                "webRequest",
+                "webRequestBlocking",
+                "http://*.onion/*",
+                "https://*.onion/*",
+                "ws://*.onion/*",
+                "wss://*.onion/*",
+                "http://*.i2p/*",
+                "https://*.i2p/*",
+                "ws://*.i2p/*",
+                "wss://*.i2p/*",
                 "http://127.0.0.1/*",
             ],
             "background": {"scripts": ["background.js"]},
@@ -523,44 +514,64 @@ def _route_helper_background_js() -> str:
             "  return '';",
             "}",
             "",
-            "async function helper(action, transport, url) {",
+            "async function helper(action, transport, url, consent = false) {",
             "  const response = await fetch(HELPER_URL, {",
             "    method: 'POST',",
             "    headers: {",
             "      'Content-Type': 'application/json',",
             "      'X-AMPB-Token': HELPER_TOKEN,",
             "    },",
-            "    body: JSON.stringify({ action, transport, url }),",
+            "    body: JSON.stringify({ action, transport, url, consent }),",
             "  });",
             "  return response.json();",
             "}",
             "",
-            "async function handleNavigate(details) {",
-            "  if (details.frameId !== 0) return;",
-            "  const transport = transportForUrl(details.url);",
-            "  if (!transport) return;",
-            "  const key = `${details.tabId}:${details.url}`;",
-            "  if (pendingByTab.get(details.tabId) === details.url) return;",
-            "  let status;",
-            "  try {",
-            "    status = await helper('status', transport, details.url);",
-            "  } catch (error) {",
-            "    status = { ok: false, ready: false, message: String(error) };",
-            "  }",
-            "  if (status.ready) return;",
-            "  pendingByTab.set(details.tabId, details.url);",
-            "  const installCommand = Array.isArray(status.install_command) ? status.install_command.join(' ') : '';",
-            "  const setupUrl = browser.runtime.getURL(",
-            "    `setup.html?transport=${encodeURIComponent(transport)}&url=${encodeURIComponent(details.url)}&message=${encodeURIComponent(status.message || '')}&hint=${encodeURIComponent(status.setup_hint || '')}&install=${encodeURIComponent(installCommand)}`",
-            "  );",
-            "  await browser.tabs.update(details.tabId, { url: setupUrl });",
+            "function internalUrl(page, transport, url, result) {",
+            "  const installCommand = Array.isArray(result.install_command) ? result.install_command.join(' ') : '';",
+            "  const params = new URLSearchParams({",
+            "    transport,",
+            "    url,",
+            "    message: result.message || '',",
+            "    hint: result.setup_hint || '',",
+            "    install: installCommand,",
+            "  });",
+            "  return browser.runtime.getURL(`${page}.html?${params.toString()}`);",
             "}",
             "",
-            "browser.webNavigation.onBeforeNavigate.addListener(handleNavigate);",
+            "async function handoff(details, transport) {",
+            "  let result;",
+            "  try {",
+            "    result = await helper('open', transport, details.url, false);",
+            "  } catch (error) {",
+            "    result = { ok: false, launched: false, message: String(error) };",
+            "  }",
+            "  const page = result.launched ? 'handoff' : 'setup';",
+            "  try {",
+            "    await browser.tabs.update(details.tabId, { url: internalUrl(page, transport, details.url, result) });",
+            "  } finally {",
+            "    pendingByTab.delete(details.tabId);",
+            "  }",
+            "}",
+            "",
+            "function interceptRequest(details) {",
+            "  const transport = transportForUrl(details.url);",
+            "  if (!transport) return {};",
+            "  if (details.type !== 'main_frame' || details.tabId < 0) return { cancel: true };",
+            "  if (pendingByTab.get(details.tabId) === details.url) return { cancel: true };",
+            "  pendingByTab.set(details.tabId, details.url);",
+            "  void handoff(details, transport);",
+            "  return { cancel: true };",
+            "}",
+            "",
+            "browser.webRequest.onBeforeRequest.addListener(",
+            "  interceptRequest,",
+            "  { urls: ['http://*.onion/*', 'https://*.onion/*', 'ws://*.onion/*', 'wss://*.onion/*', 'http://*.i2p/*', 'https://*.i2p/*', 'ws://*.i2p/*', 'wss://*.i2p/*'] },",
+            "  ['blocking']",
+            ");",
             "",
             "browser.runtime.onMessage.addListener((message) => {",
-            "  if (!message || message.type !== 'ampb-ensure') return false;",
-            "  return helper('ensure', message.transport, message.url);",
+            "  if (!message || message.type !== 'ampb-open') return false;",
+            "  return helper('open', message.transport, message.url, message.consent === true);",
             "});",
             "",
         )
@@ -631,10 +642,11 @@ def _route_helper_setup_js() -> str:
             "document.getElementById('approve').addEventListener('click', async () => {",
             "  const status = document.getElementById('status');",
             "  status.textContent = `Starting ${label}...`;",
-            "  const result = await browser.runtime.sendMessage({ type: 'ampb-ensure', transport, url });",
-            "  if (result && result.ready) {",
-            "    status.textContent = `${label} is ready. Opening route...`;",
-            "    window.location.href = url;",
+            "  const result = await browser.runtime.sendMessage({ type: 'ampb-open', transport, url, consent: true });",
+            "  if (result && result.launched) {",
+            "    status.textContent = `${label} opened in its isolated browser profile.`;",
+            "    const params = new URLSearchParams({ transport, url });",
+            "    window.location.href = browser.runtime.getURL(`handoff.html?${params.toString()}`);",
             "    return;",
             "  }",
             "  if (result && Array.isArray(result.install_command)) {",
@@ -664,6 +676,49 @@ def _route_helper_setup_css() -> str:
     )
 
 
+def _route_helper_handoff_html() -> str:
+    return "\n".join(
+        (
+            "<!doctype html>",
+            '<html lang="en">',
+            "<head>",
+            '  <meta charset="utf-8">',
+            '  <meta name="viewport" content="width=device-width, initial-scale=1">',
+            "  <title>Route Opened</title>",
+            '  <link rel="stylesheet" href="setup.css">',
+            "</head>",
+            "<body>",
+            '  <main class="panel">',
+            '    <p class="eyebrow">AMPB Transport Broker</p>',
+            '    <h1 id="title">Route opened</h1>',
+            '    <p id="body">The destination is open in its isolated transport profile.</p>',
+            '    <pre id="url"></pre>',
+            "  </main>",
+            '  <script src="handoff.js"></script>',
+            "</body>",
+            "</html>",
+            "",
+        )
+    )
+
+
+def _route_helper_handoff_js() -> str:
+    return "\n".join(
+        (
+            '"use strict";',
+            "",
+            "const params = new URLSearchParams(window.location.search);",
+            "const transport = params.get('transport') || '';",
+            "const url = params.get('url') || '';",
+            "const label = transport === 'tor' ? 'Tor' : transport === 'i2p' ? 'I2P' : transport;",
+            "document.getElementById('title').textContent = `${label} route opened`;",
+            "document.getElementById('body').textContent = `This destination opened in the isolated ${label} profile. This clearnet profile did not load it.`;",
+            "document.getElementById('url').textContent = url;",
+            "",
+        )
+    )
+
+
 def _endpoint_host_port(endpoint: str) -> tuple[str, int]:
     parsed = urlparse(endpoint)
     return parsed.hostname or "127.0.0.1", parsed.port or 0
@@ -679,7 +734,7 @@ def _format_pref(name: str, value: str | int | bool) -> str:
     return f"user_pref({json.dumps(name)}, {literal});"
 
 
-def _route_helper_launch_plan(root: Path) -> RouteHelperLaunch:
+def _route_helper_launch_plan(root: Path, *, config_path: Path | None = None) -> RouteHelperLaunch:
     port = _free_loopback_port()
     token = secrets.token_urlsafe(24)
     endpoint = f"http://127.0.0.1:{port}/"
@@ -687,7 +742,7 @@ def _route_helper_launch_plan(root: Path) -> RouteHelperLaunch:
         "planned",
         endpoint=endpoint,
         token=token,
-        command=_route_helper_command(root=root, port=port, token=token),
+        command=_route_helper_command(root=root, port=port, token=token, config_path=config_path),
     )
 
 
@@ -696,10 +751,17 @@ def _start_route_helper(
     *,
     planned: RouteHelperLaunch | None = None,
     watch_pid: int = 0,
+    config_path: Path | None = None,
 ) -> RouteHelperLaunch:
-    helper = planned or _route_helper_launch_plan(root)
+    helper = planned or _route_helper_launch_plan(root, config_path=config_path)
     port = _endpoint_host_port(helper.endpoint)[1]
-    command = _route_helper_command(root=root, port=port, token=helper.token, watch_pid=watch_pid)
+    command = _route_helper_command(
+        root=root,
+        port=port,
+        token=helper.token,
+        watch_pid=watch_pid,
+        config_path=config_path,
+    )
     try:
         process = subprocess.Popen(command, cwd=str(root), start_new_session=True)  # noqa: S603
     except OSError as exc:
@@ -707,7 +769,14 @@ def _start_route_helper(
     return replace(helper, status="started", pid=process.pid, watch_pid=watch_pid, command=command, message="-")
 
 
-def _route_helper_command(*, root: Path, port: int, token: str, watch_pid: int = 0) -> tuple[str, ...]:
+def _route_helper_command(
+    *,
+    root: Path,
+    port: int,
+    token: str,
+    watch_pid: int = 0,
+    config_path: Path | None = None,
+) -> tuple[str, ...]:
     command = (
         sys.executable,
         "-m",
@@ -724,6 +793,8 @@ def _route_helper_command(*, root: Path, port: int, token: str, watch_pid: int =
     )
     if watch_pid > 0:
         command = (*command, "--watch-pid", str(watch_pid))
+    if config_path:
+        command = (*command, "--config", str(config_path))
     return command
 
 
@@ -737,6 +808,102 @@ def _execution_command(root: Path, spec: BrowserLaunchSpec) -> tuple[str, ...]:
         return tuple(command)
     command[profile_index] = str(_path_from(root, command[profile_index]))
     return tuple(command)
+
+
+def _open_existing_profile(
+    open_plan: OpenPlan,
+    *,
+    root: Path,
+    spec: BrowserLaunchSpec,
+    active_pid: int,
+) -> OpenPlan:
+    runtime_path = str(_path_from(root, spec.runtime_path))
+    profile_path = str(_path_from(root, spec.profile_path))
+    command = (runtime_path, "--profile", profile_path, "--new-tab", open_plan.browse_plan.route.normalized)
+    try:
+        process = subprocess.Popen(command, cwd=str(root), start_new_session=True)  # noqa: S603
+    except OSError as exc:
+        return replace(
+            open_plan,
+            dry_run=False,
+            status="profile-reuse-failed",
+            browser_pid=active_pid,
+            message=f"could not open route in active {open_plan.browse_plan.route.profile} profile: {exc}",
+        )
+    exit_code = _immediate_exit_code(process)
+    if exit_code == 0:
+        return replace(
+            open_plan,
+            dry_run=False,
+            launch_spec=replace(spec, command=command),
+            status="opened-existing",
+            browser_pid=active_pid,
+            message=f"opened route in active {open_plan.browse_plan.route.profile} profile",
+        )
+    if exit_code is None:
+        _record_profile_session(root, spec, process.pid)
+        return replace(
+            open_plan,
+            dry_run=False,
+            launch_spec=replace(spec, command=command),
+            status="launched",
+            browser_pid=process.pid,
+            message=f"launched replacement {open_plan.browse_plan.route.profile} profile process",
+        )
+    return replace(
+        open_plan,
+        dry_run=False,
+        launch_spec=replace(spec, command=command),
+        status="profile-reuse-failed",
+        browser_pid=active_pid,
+        message=f"active profile rejected route with code {exit_code}",
+    )
+
+
+def _active_profile_session(root: Path, spec: BrowserLaunchSpec) -> int:
+    session_path = _profile_session_path(root, spec)
+    try:
+        data = json.loads(session_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return 0
+    if not isinstance(data, dict):
+        return 0
+    pid = data.get("pid")
+    runtime_path = data.get("runtime_path")
+    if not isinstance(pid, int) or pid <= 0 or runtime_path != str(_path_from(root, spec.runtime_path)):
+        return 0
+    if _pid_exists(pid):
+        return pid
+    try:
+        session_path.unlink()
+    except OSError:
+        pass
+    return 0
+
+
+def _record_profile_session(root: Path, spec: BrowserLaunchSpec, pid: int) -> None:
+    if not isinstance(pid, int) or pid <= 0:
+        return
+    session_path = _profile_session_path(root, spec)
+    session_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "pid": pid,
+        "profile_path": str(_path_from(root, spec.profile_path)),
+        "runtime_path": str(_path_from(root, spec.runtime_path)),
+    }
+    temporary_path = session_path.with_name(f".{PROFILE_SESSION_NAME}.{pid}.tmp")
+    try:
+        temporary_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        temporary_path.replace(session_path)
+    except OSError:
+        try:
+            temporary_path.unlink()
+        except OSError:
+            pass
+
+
+def _profile_session_path(root: Path, spec: BrowserLaunchSpec) -> Path:
+    return _path_from(root, spec.profile_path) / PROFILE_SESSION_NAME
 
 
 def _stop_route_helper(route_helper: RouteHelperLaunch) -> str:
@@ -757,6 +924,16 @@ def _immediate_exit_code(process: subprocess.Popen, *, wait_seconds: float = 1.0
     return None
 
 
+def _pid_exists(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
+
+
 def _free_loopback_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind(("127.0.0.1", 0))
@@ -766,13 +943,7 @@ def _free_loopback_port() -> int:
 def _write_profile(root: Path, spec: BrowserLaunchSpec, *, route_helper: RouteHelperLaunch | None = None) -> None:
     profile_path = _path_from(root, spec.profile_path)
     profile_path.mkdir(parents=True, exist_ok=True)
-    pac_url = "-"
-    if spec.route_aware and spec.pac_content:
-        pac_path = _path_from(root, spec.pac_path)
-        pac_path.parent.mkdir(parents=True, exist_ok=True)
-        pac_path.write_text(spec.pac_content, encoding="utf-8")
-        pac_url = pac_path.resolve().as_uri()
-    if spec.route_aware:
+    if spec.broker:
         helper = route_helper or RouteHelperLaunch("disabled")
         for asset in spec.extension_assets:
             asset_path = _path_from(root, asset.path)
@@ -782,7 +953,6 @@ def _write_profile(root: Path, spec: BrowserLaunchSpec, *, route_helper: RouteHe
             asset_path.write_text(content, encoding="utf-8")
     user_js_path = _path_from(root, spec.user_js_path)
     text = "// Managed by AMPB. Local browser profile policy.\n" + "\n".join(spec.prefs) + "\n"
-    text = text.replace(PAC_URL_PLACEHOLDER, pac_url)
     user_js_path.write_text(text, encoding="utf-8")
 
 

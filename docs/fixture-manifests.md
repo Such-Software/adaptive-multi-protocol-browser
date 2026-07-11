@@ -1,10 +1,11 @@
 # Fixture Manifests
 
-> Status: draft | Updated 2026-07-06 | Applies to: AMPB and AMPG compatibility checks
+> Status: draft | Updated 2026-07-11 | Applies to: AMPB and AMPG compatibility checks
 
 AMPB can check AMPG fixture manifests without contacting any network. The check confirms
-that each generated fixture URL routes to the expected AMPB transport and profile, and
-that its declared interaction policy fits that transport.
+that each generated fixture URL routes to the expected AMPB transport and profile, uses
+the declared transport-profile isolation contract, and fits that transport's interaction
+policy.
 
 Route-expanded fixtures may include `route.match` and `route.fixture_path`, which identify
 the route group that produced the fixture.
@@ -20,8 +21,9 @@ manifest.
 
 ## Scope
 
-Fixture checks validate route selection and declared interaction policy only. They do not
-verify daemon health, hidden service reachability, IPFS pinning, TLS, or content freshness.
+Fixture checks validate route selection, profile isolation expectations, and declared
+interaction policy only. They do not verify process separation, daemon health, hidden
+service reachability, IPFS pinning, TLS, or content freshness.
 
 The manifest must not contain private deployment notes, service keys, credentials, or
 host inventory.

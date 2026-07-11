@@ -40,6 +40,7 @@ enabled = false
 
             config = load_config(Path(tmp), path)
 
+        self.assertEqual(str(path.resolve()), config.config_path)
         self.assertEqual(".local/ampb", config.state_dir)
         self.assertEqual("/opt/ampb/firefox", config.runtime_path)
         self.assertEqual("adopt", config.transport_mode("tor"))

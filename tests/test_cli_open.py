@@ -63,7 +63,7 @@ class CliOpenTest(unittest.TestCase):
             provider_source="bundled-sidecar",
         )
 
-        def fake_execute(open_plan, *, root: Path):
+        def fake_execute(open_plan, *, root: Path, config: AppConfig):
             return replace(
                 open_plan,
                 status="launched",
@@ -108,15 +108,22 @@ class CliOpenTest(unittest.TestCase):
         self.assertIn("prompt_shown=false", output)
         self.assertIn("prompt_approved=false", output)
 
-    def test_route_aware_open_prints_profile_and_pac_path(self) -> None:
+    def test_broker_open_prints_isolated_broker_profile(self) -> None:
+        with patch.object(sys, "stdout", new_callable=io.StringIO) as stdout:
+            code = main(["open", "https://ampgateway.site/", "--broker"])
+
+        self.assertEqual(0, code)
+        output = stdout.getvalue()
+        self.assertIn("broker=true", output)
+        self.assertIn("profile_path=.ampb/profiles/broker", output)
+        self.assertNotIn("pac_path=", output)
+
+    def test_route_aware_flag_remains_broker_alias(self) -> None:
         with patch.object(sys, "stdout", new_callable=io.StringIO) as stdout:
             code = main(["open", "https://ampgateway.site/", "--route-aware"])
 
         self.assertEqual(0, code)
-        output = stdout.getvalue()
-        self.assertIn("route_aware=true", output)
-        self.assertIn("profile_path=.ampb/profiles/route-aware", output)
-        self.assertIn("pac_path=.ampb/profiles/route-aware/ampb-proxy.pac", output)
+        self.assertIn("broker=true", stdout.getvalue())
 
     def test_hidden_helper_command_passes_watch_pid(self) -> None:
         with patch("ampbrowser.cli.serve_route_helper") as helper:

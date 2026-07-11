@@ -1,6 +1,6 @@
 # Architecture
 
-> Status: draft | Updated 2026-07-07 | Applies to: AMPB contributors and integrators
+> Status: draft | Updated 2026-07-11 | Applies to: AMPB contributors and integrators
 
 AMPB is a browser orchestration layer for privacy, resilient-network, content-addressed,
 and alternate-web transports. It keeps the routing, transport management, and profile
@@ -16,12 +16,20 @@ isolation decisions outside the browser engine until those contracts are stable.
 6. Start or install managed transports only after user consent.
 7. Open the URL with the matching isolated profile.
 
+The clearnet entry profile is a broker, not a mixed-network profile. It uses direct
+clearnet networking. Its extension blocks all `.onion` and `.i2p` requests from that
+profile. For a top-level navigation, it asks a token-gated loopback helper to apply the
+normal route and consent policy, then opens the destination in a separate transport
+profile and browser process.
+
 ## Main Components
 
 - `ampbrowser.routing`: deterministic URL-to-transport rules.
 - `ampbrowser.adapters`: transport ownership, setup, inspection, and health contracts.
 - `ampbrowser.transports`: local readiness checks for Tor, I2P, IPFS, Reticulum, and Gemini.
 - `ampbrowser.plan`: dry-run action planner for browser launches.
+- `ampbrowser.broker`: validated handoff from the clearnet entry profile to an isolated
+  transport profile.
 - `ampbrowser.launch`: side-effect-free launch specs and first-use consent state.
 - `ampbrowser.platforms`: platform capability matrix for desktop, Android, and iOS.
 - `ampbrowser.candidates`: evaluated transport candidates before active adapter support.
@@ -49,8 +57,21 @@ Generated backend metadata lives in
 
 The first implementation path is documented in [desktop vertical](desktop-vertical.md).
 
+## Isolation Boundaries
+
+- Browser storage is isolated by transport profile.
+- Transport runtime state is isolated under AMPB-owned transport directories when AMPB
+  manages the daemon.
+- A transport profile remains sticky: ordinary navigation stays in that profile and uses
+  its configured proxy until the user explicitly starts a different context.
+- The loopback helper accepts a random per-launch token and recomputes the URL route before
+  opening it. A caller cannot label an I2P URL as Tor or vice versa.
+
+These controls prevent accidental browser-state mixing. They do not by themselves provide
+Tor Browser fingerprinting resistance or make non-anonymous transports anonymous.
+
 ## Relationship To AMPG
 
-AMPG publishes protocol-specific site variants. AMPB opens those variants with the right
-transport and profile. Wownero is the shared fixture for static publishing, while
-interactive targets exercise sessions, dynamic assets, forms, and script policy.
+AMPG publishes protocol-specific site variants and declares their expected transport,
+profile, and isolation mode in fixture manifests. AMPB validates and enforces the browser
+side of that contract. AMPG never controls local browser daemon ownership or profile state.
