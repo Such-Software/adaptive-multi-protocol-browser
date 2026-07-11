@@ -126,6 +126,8 @@ def _result_response(result: ManagedTransportResult) -> dict[str, Any]:
         "state_dir": result.state_dir,
         "message": result.message,
         "command": list(result.command),
+        "setup_hint": result.setup_hint,
+        "install_command": list(result.install_command),
     }
 
 

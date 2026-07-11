@@ -15,7 +15,7 @@ from .plan import plan_url
 from .platforms import PLATFORM_CHOICES
 from .route_helper import serve_route_helper
 from .routing import route_url
-from .transport_manager import ensure_transport_ready, stop_managed_transport, transport_status
+from .transport_manager import ensure_transport_ready, repair_managed_transport, stop_managed_transport, transport_status
 from .transports import inspect_transports
 
 
@@ -80,6 +80,9 @@ def main(argv: list[str] | None = None) -> int:
     transport_stop_parser = transport_subcommands.add_parser("stop", help="Stop an AMPB-owned transport.")
     transport_stop_parser.add_argument("transport")
     transport_stop_parser.add_argument("--config", type=Path, help="Path to an AMPB config file.")
+    transport_repair_parser = transport_subcommands.add_parser("repair", help="Reset AMPB-owned runtime state for a transport.")
+    transport_repair_parser.add_argument("transport")
+    transport_repair_parser.add_argument("--config", type=Path, help="Path to an AMPB config file.")
 
     fixture_parser = subcommands.add_parser("fixture", help="Check AMPG fixture manifests.")
     fixture_subcommands = fixture_parser.add_subparsers(dest="fixture_command", required=True)
@@ -286,9 +289,12 @@ def _cmd_transport(args) -> int:
         result = ensure_transport_ready(args.transport, config=config, root=Path.cwd())
     elif args.transport_command == "stop":
         result = stop_managed_transport(args.transport, config=config, root=Path.cwd())
+    elif args.transport_command == "repair":
+        result = repair_managed_transport(args.transport, config=config, root=Path.cwd())
     else:
         return 1
     command = shlex.join(result.command) if result.command else "-"
+    install_command = shlex.join(result.install_command) if result.install_command else "-"
     print(
         "AMPBROWSER_TRANSPORT "
         f"transport={result.transport} "
@@ -301,6 +307,8 @@ def _cmd_transport(args) -> int:
         f"endpoint={result.endpoint} "
         f"state_dir={result.state_dir} "
         f"command=\"{_safe(command)}\" "
+        f"install_command=\"{_safe(install_command)}\" "
+        f"setup_hint=\"{_safe(result.setup_hint)}\" "
         f"message=\"{_safe(result.message)}\""
     )
     return 0

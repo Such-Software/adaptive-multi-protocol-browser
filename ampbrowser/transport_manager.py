@@ -8,6 +8,7 @@ import signal
 import shutil
 import socket
 import subprocess
+import sys
 import time
 from urllib.parse import urlparse
 
@@ -35,6 +36,12 @@ class I2PProvider:
 
 
 @dataclass(frozen=True)
+class SetupHint:
+    message: str
+    command: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class ManagedTransportResult:
     transport: str
     provider: str
@@ -46,6 +53,8 @@ class ManagedTransportResult:
     command: tuple[str, ...]
     message: str
     provider_source: str = "-"
+    setup_hint: str = "-"
+    install_command: tuple[str, ...] = ()
 
     @property
     def ready(self) -> bool:
@@ -140,6 +149,8 @@ def transport_status(
         _managed_state_dir(root, config, transport),
         (),
         f"{transport} transport is not running",
+        setup_hint=_stopped_setup_hint(transport, config),
+        install_command=_stopped_install_command(transport, config),
     )
 
 
@@ -241,6 +252,66 @@ def stop_managed_transport(
         command,
         f"AMPB-owned {transport} did not stop before timeout",
         provider_source=provider_source,
+    )
+
+
+def repair_managed_transport(
+    transport: str,
+    *,
+    config: AppConfig,
+    root: Path,
+    wait_seconds: float = 5.0,
+) -> ManagedTransportResult:
+    adapter = adapter_for(transport)
+    if adapter is None:
+        return ManagedTransportResult(transport, "-", "unsupported", "-", False, 0, "-", (), "transport adapter not found")
+
+    state_dir = _managed_state_dir(root, config, transport)
+    state_path = Path(state_dir)
+    stop_result = stop_managed_transport(transport, config=config, root=root, wait_seconds=wait_seconds)
+    if stop_result.status in {"stop-failed", "stop-timeout"}:
+        return ManagedTransportResult(
+            transport,
+            stop_result.provider,
+            "repair-blocked",
+            stop_result.endpoint,
+            stop_result.owned,
+            stop_result.pid,
+            state_dir,
+            stop_result.command,
+            f"could not repair AMPB-owned {transport}: {stop_result.message}",
+            provider_source=stop_result.provider_source,
+        )
+
+    try:
+        shutil.rmtree(state_path)
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        return ManagedTransportResult(
+            transport,
+            stop_result.provider,
+            "repair-failed",
+            stop_result.endpoint,
+            stop_result.owned,
+            stop_result.pid,
+            state_dir,
+            stop_result.command,
+            f"could not remove AMPB-owned {transport} runtime state: {exc}",
+            provider_source=stop_result.provider_source,
+        )
+
+    return ManagedTransportResult(
+        transport,
+        stop_result.provider,
+        "repaired",
+        stop_result.endpoint,
+        stop_result.owned,
+        stop_result.pid,
+        state_dir,
+        stop_result.command,
+        f"removed AMPB-owned {transport} runtime state; run `ampbrowser transport start {transport}` to rebuild it",
+        provider_source=stop_result.provider_source,
     )
 
 
@@ -418,6 +489,7 @@ def _start_i2p(
     provider = _i2p_provider(config)
     state_dir = _managed_state_dir(root, config, "i2p")
     if not provider:
+        setup = _i2p_setup_hint()
         return ManagedTransportResult(
             "i2p",
             "-",
@@ -427,8 +499,9 @@ def _start_i2p(
             0,
             state_dir,
             (),
-            "I2P provider not found; on macOS run: brew install i2pd. "
-            "Alternatively set AMPB_I2PD_BIN or transports.i2p.binary_path.",
+            "I2P provider not found. " + setup.message,
+            setup_hint=setup.message,
+            install_command=setup.command,
         )
 
     state_path = Path(state_dir)
@@ -505,6 +578,33 @@ def _i2p_provider(config: AppConfig) -> I2PProvider | None:
     if homebrew_i2pd:
         return I2PProvider("i2pd", homebrew_i2pd, "system-package")
     return None
+
+
+def _stopped_setup_hint(transport: str, config: AppConfig) -> str:
+    if transport == "i2p" and _i2p_provider(config) is None:
+        return _i2p_setup_hint().message
+    return "-"
+
+
+def _stopped_install_command(transport: str, config: AppConfig) -> tuple[str, ...]:
+    if transport == "i2p" and _i2p_provider(config) is None:
+        return _i2p_setup_hint().command
+    return ()
+
+
+def _i2p_setup_hint() -> SetupHint:
+    override = "Or set AMPB_I2PD_BIN or transports.i2p.binary_path to an i2pd binary."
+    if sys.platform == "darwin":
+        return SetupHint("Install i2pd with Homebrew: brew install i2pd. " + override, ("brew", "install", "i2pd"))
+    if shutil.which("pkg"):
+        return SetupHint("Install i2pd with pkg: pkg install i2pd. " + override, ("pkg", "install", "i2pd"))
+    if shutil.which("apt"):
+        return SetupHint("Install i2pd with apt: sudo apt install i2pd. " + override, ("sudo", "apt", "install", "i2pd"))
+    if shutil.which("dnf"):
+        return SetupHint("Install i2pd with dnf: sudo dnf install i2pd. " + override, ("sudo", "dnf", "install", "i2pd"))
+    if shutil.which("pacman"):
+        return SetupHint("Install i2pd with pacman: sudo pacman -S i2pd. " + override, ("sudo", "pacman", "-S", "i2pd"))
+    return SetupHint("Install i2pd with your package manager. " + override)
 
 
 def _homebrew_i2pd_path() -> str:

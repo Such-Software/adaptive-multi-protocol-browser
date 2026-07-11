@@ -180,10 +180,12 @@ class PrepareOpenTest(unittest.TestCase):
             background = (extension / "background.js").read_text(encoding="utf-8")
             setup = (extension / "setup.html").read_text(encoding="utf-8")
             self.assertIn("webNavigation", manifest)
+            self.assertIn("install_command", background)
             self.assertIn("http://127.0.0.1:", background)
             self.assertNotIn("__AMPB_ROUTE_HELPER_URL__", background)
             self.assertNotIn("__AMPB_ROUTE_HELPER_TOKEN__", background)
             self.assertIn("Set Up Transport", setup)
+            self.assertIn("install-command", setup)
 
     def test_execute_open_blocks_when_runtime_is_missing(self) -> None:
         config = AppConfig(runtime_path="/missing/ampb/firefox", transport_modes={})

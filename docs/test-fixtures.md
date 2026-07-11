@@ -1,6 +1,6 @@
 # Test Fixtures
 
-> Status: draft | Updated 2026-07-05 | Applies to: AMPB and AMPG compatibility testing
+> Status: draft | Updated 2026-07-11 | Applies to: AMPB and AMPG compatibility testing
 
 Fixtures should cover static sites, protocol-specific publishing, and interactive web
 apps without exposing private deployment notes.
@@ -13,9 +13,8 @@ HTML improvements that improve alternate renderers.
 
 ## Interactive Fixtures
 
-`ai-gen-bot` and `medusa-multi-tenant-platform` are stretch fixtures for dynamic behavior:
-sessions, forms, asset policy, script policy, tenant routing, and transport-specific
-degradation.
+Stretch fixtures cover dynamic behavior: sessions, forms, asset policy, script policy,
+tenant routing, payments, job-style workflows, and transport-specific degradation.
 
 ## Fixture Requirements
 

@@ -1,6 +1,6 @@
 # Open Flow
 
-> Status: draft | Updated 2026-07-08 | Applies to: AMPB users and implementers
+> Status: draft | Updated 2026-07-11 | Applies to: AMPB users and implementers
 
 `ampbrowser open` prepares a safe launch plan for one URL. It routes the URL, checks only
 the selected transport, and reports whether the browser can open immediately or needs a
@@ -34,12 +34,13 @@ adopted daemon from an AMPB-owned managed process.
 through a desktop dialog when possible, falls back to a terminal prompt when needed, and
 launches through the same transport runner after approval.
 
-`ampbrowser open <url> --route-aware --launch` creates one desktop profile for clearnet,
-Tor, and I2P. The profile uses a PAC file for `.onion` and `.i2p` routing, installs the
-AMPB route-helper extension, and starts a token-gated loopback helper tied to the browser
-process. If a user clicks an alternate-network link before its local transport is ready,
-the extension shows a setup page and asks the helper to start the AMPB-managed transport
-after approval.
+`ampbrowser open <url> --route-aware --launch` creates a desktop convenience profile for
+clearnet, Tor, and I2P QA. The profile uses a PAC file for `.onion` and `.i2p` routing,
+installs the AMPB route-helper extension, and starts a token-gated loopback helper tied
+to the browser process. If a user clicks an alternate-network link before its local
+transport is ready, the extension shows a setup page and asks the helper to start the
+AMPB-managed transport after approval. This mode proves routing and first-use setup; it
+is not the final per-transport storage isolation model.
 
 ## Examples
 

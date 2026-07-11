@@ -1,6 +1,6 @@
 # Autodocs
 
-> Status: draft | Updated 2026-07-07 | Applies to: AMPB maintainers
+> Status: draft | Updated 2026-07-11 | Applies to: AMPB maintainers
 
 Public docs should stay concise and current. Code-owned behavior is documented from code,
 while manual docs explain stable concepts and operator-facing choices.
@@ -41,3 +41,7 @@ Run:
 ```sh
 python3 tools/docs_check.py
 ```
+
+The public docs gate checks status headers, internal links, repo-contained local links,
+private fixture target names, obvious private-key blocks, common API tokens, and assigned
+secret values. Private notes belong under ignored `docs/private/`.

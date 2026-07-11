@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import patch
 
 from ampbrowser.config import AppConfig
-from ampbrowser.transport_manager import ensure_transport_ready, stop_managed_transport, transport_status
+from ampbrowser.transport_manager import ensure_transport_ready, repair_managed_transport, stop_managed_transport, transport_status
 from ampbrowser.transports import TransportStatus
 
 
@@ -181,6 +181,51 @@ class TransportManagerTest(unittest.TestCase):
         self.assertEqual("arti", result.provider)
         self.assertFalse(state_path.exists())
 
+    def test_repair_managed_transport_removes_runtime_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state_dir = root / ".ampb/transports/tor"
+            profile_dir = root / ".ampb/profiles/tor"
+            state_dir.mkdir(parents=True)
+            profile_dir.mkdir(parents=True)
+            state_path = state_dir / "ampb-owned.json"
+            state_path.write_text('{"pid": 1234, "provider": "arti", "endpoint": "socks5://127.0.0.1:9050"}\n', encoding="utf-8")
+            (state_dir / "arti.log").write_text("warn\n", encoding="utf-8")
+            (profile_dir / "user.js").write_text("prefs\n", encoding="utf-8")
+
+            live = [True]
+
+            def fake_alive(pid: int) -> bool:
+                return live[0]
+
+            def fake_kill(pid: int, sig: int) -> None:
+                live[0] = False
+
+            with patch("ampbrowser.transport_manager._pid_alive", side_effect=fake_alive):
+                with patch("ampbrowser.transport_manager.os.kill", side_effect=fake_kill):
+                    result = repair_managed_transport("tor", config=AppConfig(transport_modes={}), root=root)
+
+            self.assertEqual("repaired", result.status)
+            self.assertFalse(state_dir.exists())
+            self.assertTrue((profile_dir / "user.js").exists())
+            self.assertIn("runtime state", result.message)
+
+    def test_repair_managed_transport_blocks_when_stop_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state_dir = root / ".ampb/transports/tor"
+            state_dir.mkdir(parents=True)
+            state_path = state_dir / "ampb-owned.json"
+            state_path.write_text('{"pid": 1234, "provider": "arti", "endpoint": "socks5://127.0.0.1:9050"}\n', encoding="utf-8")
+
+            with patch("ampbrowser.transport_manager._pid_alive", return_value=True):
+                with patch("ampbrowser.transport_manager.os.kill", side_effect=OSError("nope")):
+                    result = repair_managed_transport("tor", config=AppConfig(transport_modes={}), root=root)
+
+            self.assertEqual("repair-blocked", result.status)
+            self.assertTrue(state_path.exists())
+            self.assertIn("could not repair", result.message)
+
     def test_starts_configured_classic_tor_provider_with_ampb_state(self) -> None:
         status = TransportStatus(
             transport="tor",
@@ -270,14 +315,16 @@ class TransportManagerTest(unittest.TestCase):
         )
 
         with tempfile.TemporaryDirectory() as tmp:
-            with patch("ampbrowser.transport_manager.shutil.which", return_value=None):
-                with patch("ampbrowser.transport_manager._bundled_i2pd_path", return_value=""):
-                    result = ensure_transport_ready("i2p", config=AppConfig(transport_modes={}), root=Path(tmp), status=status)
+            with patch("ampbrowser.transport_manager.sys.platform", "darwin"):
+                with patch("ampbrowser.transport_manager.shutil.which", return_value=None):
+                    with patch("ampbrowser.transport_manager._bundled_i2pd_path", return_value=""):
+                        result = ensure_transport_ready("i2p", config=AppConfig(transport_modes={}), root=Path(tmp), status=status)
 
         self.assertEqual("missing-provider", result.status)
         self.assertFalse(result.ready)
         self.assertIn("I2P provider not found", result.message)
-        self.assertIn("brew install i2pd", result.message)
+        self.assertIn("brew install i2pd", result.setup_hint)
+        self.assertEqual(("brew", "install", "i2pd"), result.install_command)
 
     def test_finds_homebrew_i2pd_provider_when_not_on_path(self) -> None:
         status = TransportStatus(

@@ -1,6 +1,6 @@
 # Desktop Vertical
 
-> Status: draft | Updated 2026-07-07 | Applies to: AMPB desktop builders
+> Status: draft | Updated 2026-07-11 | Applies to: AMPB desktop builders
 
 The first AMPB browser proof is desktop-first with mobile constraints kept in view. The
 vertical is a bundled Gecko desktop runtime, AMPB-owned profile state, and a managed Tor
@@ -26,10 +26,10 @@ artifacts are available for the selected checkout.
 
 ## Transport Path
 
-The first transport target is Tor through an AMPB-owned Arti/Tor runtime. The desktop
-vertical is not complete until AMPB can start the runtime, verify the SOCKS endpoint, and
-launch the bundled browser profile without clearnet fallback. I2P and Reticulum use the
-same route, consent, state, and health-check model after Tor works.
+The first transport target is Tor through an AMPB-owned Arti/Tor runtime. The current
+desktop vertical can launch a bundled Gecko runtime, start a route-aware helper, and keep
+the helper tied to the browser process. I2P uses the same route, consent, state, and
+health-check model. Reticulum follows after the resilient-network adapter is concrete.
 
 ## Desktop Shell
 

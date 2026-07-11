@@ -1,6 +1,6 @@
 # Browser Builds
 
-> Status: draft | Updated 2026-07-07 | Applies to: AMPB desktop and mobile builders
+> Status: draft | Updated 2026-07-11 | Applies to: AMPB desktop and mobile builders
 
 AMPB browser builds must keep source checkouts, object directories, toolchain caches, and
 temporary artifacts outside this repository. The default local workspace is
@@ -99,8 +99,9 @@ system `tor` binary if one is present.
 Managed I2P startup currently targets `i2pd`. AMPB adopts an existing HTTP proxy on
 `127.0.0.1:4444` when available; otherwise `ampbrowser open <i2p-url> --yes --launch`
 uses `AMPB_I2PD_BIN`, configured `transports.i2p.binary_path`, or a system `i2pd` binary.
-The AMPB-owned process writes config, router data, logs, and ownership metadata under
-`.ampb/transports/i2p`.
+If no provider is found, AMPB returns a structured setup hint and install command for the
+CLI and route-helper page. The AMPB-owned process writes config, router data, logs, and
+ownership metadata under `.ampb/transports/i2p`.
 
 ## Source Plan
 

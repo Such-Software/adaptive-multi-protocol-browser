@@ -126,6 +126,55 @@ class CliOpenTest(unittest.TestCase):
         helper.assert_called_once()
         self.assertEqual(9876, helper.call_args.kwargs["watch_pid"])
 
+    def test_transport_command_prints_setup_hint(self) -> None:
+        result = ManagedTransportResult(
+            transport="i2p",
+            provider="-",
+            status="missing-provider",
+            endpoint="http://127.0.0.1:4444",
+            owned=False,
+            pid=0,
+            state_dir=".ampb/transports/i2p",
+            command=(),
+            message="I2P provider not found.",
+            setup_hint="Install i2pd with Homebrew: brew install i2pd.",
+            install_command=("brew", "install", "i2pd"),
+        )
+
+        with patch("ampbrowser.cli.transport_status", return_value=result):
+            with patch.object(sys, "stdout", new_callable=io.StringIO) as stdout:
+                code = main(["transport", "status", "i2p"])
+
+        self.assertEqual(0, code)
+        output = stdout.getvalue()
+        self.assertIn('install_command="brew install i2pd"', output)
+        self.assertIn('setup_hint="Install i2pd with Homebrew: brew install i2pd."', output)
+
+    def test_transport_repair_command_prints_result(self) -> None:
+        result = ManagedTransportResult(
+            transport="tor",
+            provider="arti",
+            status="repaired",
+            endpoint="socks5://127.0.0.1:9050",
+            owned=True,
+            pid=1234,
+            state_dir=".ampb/transports/tor",
+            command=("/tmp/arti", "proxy"),
+            message="removed AMPB-owned tor runtime state",
+            provider_source="bundled-sidecar",
+        )
+
+        with patch("ampbrowser.cli.repair_managed_transport", return_value=result) as repair:
+            with patch.object(sys, "stdout", new_callable=io.StringIO) as stdout:
+                code = main(["transport", "repair", "tor"])
+
+        self.assertEqual(0, code)
+        repair.assert_called_once()
+        output = stdout.getvalue()
+        self.assertIn("status=repaired", output)
+        self.assertIn("provider=arti", output)
+        self.assertIn('message="removed AMPB-owned tor runtime state"', output)
+
 
 if __name__ == "__main__":
     unittest.main()

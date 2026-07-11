@@ -51,6 +51,8 @@ class RouteHelperTest(unittest.TestCase):
             command=("/opt/i2pd",),
             message="started managed i2pd transport",
             provider_source="system-package",
+            setup_hint="Install i2pd with Homebrew: brew install i2pd.",
+            install_command=("brew", "install", "i2pd"),
         )
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -64,6 +66,8 @@ class RouteHelperTest(unittest.TestCase):
         self.assertTrue(response["ok"])
         self.assertTrue(response["ready"])
         self.assertEqual("started", response["status"])
+        self.assertEqual("Install i2pd with Homebrew: brew install i2pd.", response["setup_hint"])
+        self.assertEqual(["brew", "install", "i2pd"], response["install_command"])
         ensure.assert_called_once()
 
     def test_blocks_unsupported_routes(self) -> None:
