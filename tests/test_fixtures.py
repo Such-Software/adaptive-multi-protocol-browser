@@ -15,28 +15,28 @@ class FixtureCheckTest(unittest.TestCase):
             path.write_text(
                 json.dumps(
                     {
-                        "schema": "ampg.fixture-manifest.v1",
+                        "schema": "ampg.fixture-manifest.v2",
                         "site": {"id": "wownero", "domain": "wownero.org"},
                         "fixtures": [
                             {
                                 "protocol": "clearnet",
                                 "url": "https://wownero.org/",
-                                "checks": {"transport": "clearnet", "profile": "clearnet"},
+                                "checks": {"transport": "clearnet", "context": "clearnet", "isolation": "transport-context"},
                             },
                             {
                                 "protocol": "tor",
                                 "url": "http://wownero.onion/",
                                 "checks": {
                                     "transport": "tor",
-                                    "profile": "tor",
-                                    "isolation": "transport-profile",
+                                    "context": "tor",
+                                    "isolation": "transport-context",
                                 },
                             },
                             {
                                 "protocol": "ipfs",
                                 "url": "ipfs://bafyexample",
                                 "route": {"match": "/snapshot/*", "fixture_path": "/snapshot/"},
-                                "checks": {"transport": "ipfs", "profile": "ipfs"},
+                                "checks": {"transport": "ipfs", "context": "ipfs", "isolation": "transport-context"},
                                 "interaction": {"tier": "static"},
                             },
                         ],
@@ -49,7 +49,7 @@ class FixtureCheckTest(unittest.TestCase):
 
         self.assertTrue(result.ok)
         self.assertEqual(3, len(result.checks))
-        self.assertEqual("transport-profile", result.checks[1].actual_isolation)
+        self.assertEqual("transport-context", result.checks[1].actual_isolation)
         self.assertEqual("/snapshot/*", result.checks[2].route_match)
         self.assertEqual("/snapshot/", result.checks[2].fixture_path)
 
@@ -115,13 +115,13 @@ def _check_one(transport: str, url: str, interaction: dict) -> object:
         path.write_text(
             json.dumps(
                 {
-                    "schema": "ampg.fixture-manifest.v1",
+                    "schema": "ampg.fixture-manifest.v2",
                     "site": {"id": "example", "domain": "example.test"},
                     "fixtures": [
                         {
                             "protocol": transport,
                             "url": url,
-                            "checks": {"transport": transport, "profile": transport},
+                            "checks": {"transport": transport, "context": transport, "isolation": "transport-context"},
                             "interaction": interaction,
                         }
                     ],

@@ -45,7 +45,7 @@ def main(argv: list[str] | None = None) -> int:
         "--route-aware",
         dest="broker",
         action="store_true",
-        help="Launch a clearnet broker that hands Tor and I2P routes to isolated profiles.",
+        help="Launch one window with isolated clearnet, Tor, and I2P container tabs.",
     )
     open_mode = open_parser.add_mutually_exclusive_group()
     open_mode.add_argument(
@@ -57,7 +57,7 @@ def main(argv: list[str] | None = None) -> int:
     open_mode.add_argument(
         "--launch",
         action="store_true",
-        help="Create the isolated profile and launch the bundled browser when the route is ready.",
+        help="Create AMPB-owned browser state and launch the bundled browser when the route is ready.",
     )
 
     shell_parser = subcommands.add_parser("shell", help="Launch the desktop shell flow.")
@@ -354,8 +354,8 @@ def _cmd_fixture(args) -> int:
                 f"url={check.url} "
                 f"expected_transport={check.expected_transport} "
                 f"actual_transport={check.actual_transport} "
-                f"expected_profile={check.expected_profile} "
-                f"actual_profile={check.actual_profile} "
+                f"expected_context={check.expected_context} "
+                f"actual_context={check.actual_context} "
                 f"expected_isolation={check.expected_isolation} "
                 f"actual_isolation={check.actual_isolation} "
                 f"tier={check.tier} "

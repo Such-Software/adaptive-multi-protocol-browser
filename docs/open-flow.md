@@ -34,11 +34,11 @@ adopted daemon from an AMPB-owned managed process.
 through a desktop dialog when possible, falls back to a terminal prompt when needed, and
 launches through the same transport runner after approval.
 
-`ampbrowser open <clearnet-url> --broker --launch` creates the desktop entry profile. The
-broker has direct clearnet networking and no mixed-transport PAC. Its extension cancels
-all `.onion` and `.i2p` requests before they leave the profile. For a top-level navigation,
-it asks a token-gated loopback helper to open the URL in the isolated Tor or I2P profile.
-Missing transports use the same first-use consent flow before the handoff. `--route-aware`
+`ampbrowser open <clearnet-url> --broker --launch` creates the single-window desktop entry
+profile. Its extension assigns every web tab to a visible clearnet, Tor, or I2P container.
+When a top-level URL needs another transport, AMPB starts or adopts it after first-use
+consent, creates the destination tab in the matching container at the same position, and
+removes the old tab. It never opens a transport-specific browser window. `--route-aware`
 remains a compatibility alias for `--broker`.
 
 ## Examples

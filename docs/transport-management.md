@@ -22,7 +22,7 @@ user can install a missing provider. I2P currently reports Homebrew, apt, dnf, p
 or pkg guidance where applicable, plus the `AMPB_I2PD_BIN` and
 `transports.i2p.binary_path` override path.
 
-Route-aware desktop launches add a local helper process for in-browser setup prompts. The
+Single-window desktop launches add a local helper process for in-browser setup prompts. The
 helper accepts token-gated loopback requests from the AMPB profile extension, reports
 transport status, and starts only supported AMPB-managed transports. It does not expose a
 public network listener or manage adopted daemons. The helper watches the browser process

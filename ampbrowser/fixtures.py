@@ -9,7 +9,7 @@ from .interaction_policy import interaction_failures
 from .routing import route_url
 
 
-SUPPORTED_SCHEMAS = {"ampg.fixture-manifest.v1"}
+SUPPORTED_SCHEMAS = {"ampg.fixture-manifest.v1", "ampg.fixture-manifest.v2"}
 
 
 @dataclass(frozen=True)
@@ -21,8 +21,8 @@ class FixtureCheck:
     url: str
     expected_transport: str
     actual_transport: str
-    expected_profile: str
-    actual_profile: str
+    expected_context: str
+    actual_context: str
     expected_isolation: str
     actual_isolation: str
     tier: str
@@ -79,18 +79,22 @@ def _check_fixture(site_id: str, fixture: Any, path: Path) -> FixtureCheck:
     if not isinstance(checks, dict):
         raise ValueError(f"{path}: {protocol}: missing checks table")
     expected_transport = _string(checks, "transport")
-    expected_profile = _string(checks, "profile")
-    expected_isolation = _optional_string(checks, "isolation", "transport-profile")
+    expected_context = (
+        _string(checks, "context")
+        if "context" in checks
+        else _string(checks, "profile")
+    )
+    expected_isolation = _optional_string(checks, "isolation", "transport-context")
     interaction = _interaction_policy(fixture)
     route_metadata = _route_metadata(fixture)
 
     route = route_url(url)
-    actual_isolation = "transport-profile" if route.profile == route.transport else "shared-profile"
+    actual_isolation = "transport-context"
     failures: list[str] = []
     if route.transport != expected_transport:
         failures.append(f"transport expected {expected_transport} got {route.transport}")
-    if route.profile != expected_profile:
-        failures.append(f"profile expected {expected_profile} got {route.profile}")
+    if route.profile != expected_context:
+        failures.append(f"context expected {expected_context} got {route.profile}")
     if actual_isolation != expected_isolation:
         failures.append(f"isolation expected {expected_isolation} got {actual_isolation}")
     failures.extend(
@@ -112,8 +116,8 @@ def _check_fixture(site_id: str, fixture: Any, path: Path) -> FixtureCheck:
         url=route.normalized,
         expected_transport=expected_transport,
         actual_transport=route.transport,
-        expected_profile=expected_profile,
-        actual_profile=route.profile,
+        expected_context=expected_context,
+        actual_context=route.profile,
         expected_isolation=expected_isolation,
         actual_isolation=actual_isolation,
         tier=interaction["tier"],

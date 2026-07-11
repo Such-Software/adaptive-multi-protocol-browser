@@ -103,7 +103,7 @@ BROWSER_BACKENDS = (
         "primary desktop runtime",
         "planned",
         "desktop",
-        "bundled Firefox/Gecko-lineage app with AMPB-owned profiles and transports",
+        "bundled Firefox/Gecko-lineage app with one window and AMPB-owned transport contexts",
         "no system browser dependency; track Firefox ESR, Tor Browser, and Mullvad hardening choices",
         "Default desktop runtime; users should not need Firefox installed.",
     ),
@@ -113,7 +113,7 @@ BROWSER_BACKENDS = (
         "planned",
         "android",
         "bundled GeckoView/Fenix/Tor Browser Android-lineage app with foreground transports",
-        "no system browser dependency; app owns profile, proxy policy, and transport lifecycle",
+        "no system browser dependency; app owns context, proxy policy, and transport lifecycle",
         "Default Android runtime for real mobile AMPB.",
     ),
     BrowserBackend(

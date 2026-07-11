@@ -20,15 +20,16 @@ capabilities they exercise, while project-specific target notes stay in private 
 - Adopt existing Tor, I2P, Reticulum, and Gemini-capable tools when healthy.
 - Prompt on first visit before installing or starting a missing transport.
 - Manage approved transports through isolated AMPB state.
-- Keep browser profiles isolated by transport.
-- Hand alternate-network links from the clearnet broker to transport-specific browser
-  profiles before the destination request leaves the broker profile.
+- Keep all transports in one visible browser window.
+- Give every web tab an explicit, visible, fail-closed transport context.
+- Isolate cookies and site data by transport container while routing the entire tab through
+  its selected transport.
 - Present transport health in plain language.
 
 ## Non-goals
 
-- Forking a browser engine before the orchestration model is proven.
-- Mixing clearnet, Tor, I2P, and Reticulum cookies/storage in one profile.
+- Treating the WebExtension container prototype as the final anonymity boundary.
+- Mixing clearnet, Tor, I2P, and Reticulum site data in one transport context.
 - Publishing private transport state, keys, or host inventory in public docs.
 
 ## Local Commands
@@ -67,7 +68,7 @@ python3 -m unittest discover -s tests
 
 - [Architecture](docs/architecture.md)
 - [Browser builds](docs/browser-builds.md)
-- [Transport broker](docs/broker.md)
+- [Transport contexts](docs/broker.md)
 - [Candidate transports](docs/candidate-transports.md)
 - [Configuration](docs/configuration.md)
 - [Desktop vertical](docs/desktop-vertical.md)
@@ -84,6 +85,6 @@ python3 -m unittest discover -s tests
 - [ ] Route URL to transport.
 - [ ] Inspect whether transport can be adopted.
 - [ ] Prompt before installing or starting a missing transport.
-- [ ] Use isolated profile state for each transport.
+- [ ] Use an isolated, visible transport context for every tab.
 - [ ] Spawn/manage only after a dry-run plan.
 - [ ] Keep private notes under `docs/private/`.

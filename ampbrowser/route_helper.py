@@ -8,9 +8,7 @@ import threading
 import time
 from typing import Any
 
-from .broker import BrokerRouteError, open_brokered_url
 from .config import AppConfig, load_config
-from .launch import OpenPlan
 from .routing import route_url
 from .transport_manager import ManagedTransportResult, ensure_transport_ready, transport_status
 
@@ -35,24 +33,6 @@ def handle_helper_message(
         return _result_response(transport_status(transport, config=config, root=root))
     if action == "ensure":
         return _result_response(ensure_transport_ready(transport, config=config, root=root))
-    if action == "open":
-        raw_url = _string(message.get("url"))
-        if not raw_url:
-            return _error_response("missing-url", "broker open requires a URL")
-        try:
-            open_plan = open_brokered_url(
-                raw_url,
-                expected_transport=transport,
-                consent=message.get("consent") is True,
-                config=config,
-                root=root,
-            )
-        except BrokerRouteError as exc:
-            return _error_response("route-mismatch", str(exc))
-        transport_result = None
-        if open_plan.status not in {"launched", "opened-existing"}:
-            transport_result = transport_status(transport, config=config, root=root)
-        return _open_response(open_plan, transport_result)
     return _error_response("unsupported-action", f"unsupported helper action: {action or '-'}")
 
 
@@ -148,32 +128,6 @@ def _result_response(result: ManagedTransportResult) -> dict[str, Any]:
         "command": list(result.command),
         "setup_hint": result.setup_hint,
         "install_command": list(result.install_command),
-    }
-
-
-def _open_response(
-    open_plan: OpenPlan,
-    transport_result: ManagedTransportResult | None,
-) -> dict[str, Any]:
-    route = open_plan.browse_plan.route
-    opened = open_plan.status in {"launched", "opened-existing"}
-    return {
-        "ok": True,
-        "transport": route.transport,
-        "profile": route.profile,
-        "status": open_plan.status,
-        "ready": opened,
-        "launched": opened,
-        "requires_consent": open_plan.status == "consent-required",
-        "consent_granted": open_plan.consent_granted,
-        "browser_pid": open_plan.browser_pid,
-        "profile_path": open_plan.profile_path,
-        "message": open_plan.message,
-        "setup_prompt_title": open_plan.setup_prompt_title,
-        "setup_prompt_body": open_plan.setup_prompt_body,
-        "setup_prompt_approve_label": open_plan.setup_prompt_approve_label,
-        "setup_hint": transport_result.setup_hint if transport_result else "-",
-        "install_command": list(transport_result.install_command) if transport_result else [],
     }
 
 

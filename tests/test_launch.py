@@ -141,7 +141,7 @@ class PrepareOpenTest(unittest.TestCase):
             self.assertTrue(user_js.exists())
             self.assertIn('user_pref("network.proxy.type", 0);', user_js.read_text(encoding="utf-8"))
 
-    def test_broker_open_writes_direct_profile_and_handoff_extension(self) -> None:
+    def test_broker_open_writes_single_window_container_router(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             runtime = root / "firefox"
@@ -153,6 +153,7 @@ class PrepareOpenTest(unittest.TestCase):
             self.assertIsNotNone(plan.launch_spec)
             self.assertTrue(plan.launch_spec.broker)
             self.assertIn('user_pref("network.proxy.type", 0);', plan.launch_spec.prefs)
+            self.assertIn('user_pref("media.peerconnection.enabled", false);', plan.launch_spec.prefs)
 
             planned_helper = RouteHelperLaunch("planned", endpoint="http://127.0.0.1:44001/", token="test-token")
             helper = RouteHelperLaunch("started", endpoint="http://127.0.0.1:44001/", token="test-token", pid=4321)
@@ -185,17 +186,29 @@ class PrepareOpenTest(unittest.TestCase):
             background = (extension / "background.js").read_text(encoding="utf-8")
             setup = (extension / "setup.html").read_text(encoding="utf-8")
             self.assertIn("webRequestBlocking", manifest)
-            self.assertIn("http://*.onion/*", manifest)
-            self.assertIn("wss://*.i2p/*", manifest)
+            self.assertIn("contextualIdentities", manifest)
+            self.assertIn('"proxy"', manifest)
+            self.assertIn("<all_urls>", manifest)
             self.assertIn("cancel: true", background)
-            self.assertIn("helper('open'", background)
+            self.assertIn("browser.proxy.onRequest", background)
+            self.assertIn("cookieStoreId", background)
+            self.assertIn("browser.tabs.create", background)
+            self.assertIn("proxyDNS: true", background)
+            self.assertIn("'<torS0X>0'", background)
+            self.assertIn("connectionIsolationKey", background)
+            self.assertIn("blockedProxy", background)
+            self.assertIn("isHelperRequest", background)
+            self.assertIn("details.tabId < 0", background)
+            self.assertIn("helper('status'", background)
+            self.assertIn("helper('ensure'", background)
+            self.assertNotIn("helper('open'", background)
             self.assertIn("install_command", background)
             self.assertIn("http://127.0.0.1:", background)
             self.assertNotIn("__AMPB_ROUTE_HELPER_URL__", background)
             self.assertNotIn("__AMPB_ROUTE_HELPER_TOKEN__", background)
             self.assertIn("Set Up Transport", setup)
             self.assertIn("install-command", setup)
-            self.assertTrue((extension / "handoff.html").exists())
+            self.assertFalse((extension / "handoff.html").exists())
 
     def test_broker_entry_rejects_alternate_transport_url(self) -> None:
         plan = prepare_open("http://example.onion/", broker=True)

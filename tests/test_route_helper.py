@@ -1,16 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import replace
 from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
 
 from ampbrowser.config import AppConfig
-from ampbrowser.launch import prepare_open
 from ampbrowser.route_helper import handle_helper_message
 from ampbrowser.transport_manager import ManagedTransportResult
-from ampbrowser.transports import TransportStatus
 
 
 class RouteHelperTest(unittest.TestCase):
@@ -84,41 +81,7 @@ class RouteHelperTest(unittest.TestCase):
         self.assertFalse(response["ok"])
         self.assertEqual("unsupported-transport", response["status"])
 
-    def test_open_hands_route_to_isolated_transport_profile(self) -> None:
-        status = TransportStatus(
-            transport="tor",
-            installed=True,
-            running=True,
-            endpoint="socks5://127.0.0.1:9050",
-            adoptable=True,
-            manage_supported=True,
-            note="Tor SOCKS proxy",
-        )
-        with patch("ampbrowser.plan.inspect_transport", return_value=status):
-            plan = prepare_open("http://example.onion/")
-        launched = replace(plan, status="launched", dry_run=False, browser_pid=4321)
-
-        with tempfile.TemporaryDirectory() as tmp:
-            with patch("ampbrowser.route_helper.open_brokered_url", return_value=launched) as broker_open:
-                response = handle_helper_message(
-                    {
-                        "action": "open",
-                        "transport": "tor",
-                        "url": "http://example.onion/",
-                        "consent": True,
-                    },
-                    root=Path(tmp),
-                    config=AppConfig(transport_modes={}),
-                )
-
-        self.assertTrue(response["ok"])
-        self.assertTrue(response["launched"])
-        self.assertEqual("tor", response["profile"])
-        self.assertEqual(".ampb/profiles/tor", response["profile_path"])
-        self.assertEqual(4321, response["browser_pid"])
-        broker_open.assert_called_once()
-
-    def test_open_rejects_transport_url_mismatch(self) -> None:
+    def test_open_action_is_not_exposed(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             response = handle_helper_message(
                 {
@@ -131,7 +94,7 @@ class RouteHelperTest(unittest.TestCase):
             )
 
         self.assertFalse(response["ok"])
-        self.assertEqual("route-mismatch", response["status"])
+        self.assertEqual("unsupported-action", response["status"])
 
 
 if __name__ == "__main__":

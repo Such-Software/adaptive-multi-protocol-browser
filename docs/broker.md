@@ -1,39 +1,46 @@
-# Transport Broker
+# Transport Contexts
 
 > Status: draft | Updated 2026-07-11 | Applies to: AMPB desktop users and implementers
 
-The transport broker is AMPB's clearnet entry profile. It gives users one place to begin
-without combining clearnet, Tor, and I2P browser storage or proxy policy.
+AMPB presents clearnet, Tor, and I2P in one browser window. Every web tab has a visible
+transport container. Changing transports replaces the tab in the same position and window;
+it never opens a transport-specific browser window.
 
-## Handoff
+## Tab Flow
 
-1. The broker profile begins a top-level navigation.
-2. Its extension recognizes `.onion` or `.i2p` and cancels the request.
-3. A token-gated loopback helper independently routes the URL.
-4. If needed, AMPB asks for first-use consent and starts or adopts the transport.
-5. AMPB opens the URL in `.ampb/profiles/tor` or `.ampb/profiles/i2p` with that profile's
-   proxy policy.
-6. The broker tab reports that the route opened in an isolated context.
+1. AMPB routes a top-level URL before it loads.
+2. The current tab continues when its transport context is compatible.
+3. A different transport is started or adopted only after first-use consent.
+4. AMPB creates the destination tab in the matching container and removes the old tab.
+5. Firefox displays the container name and color on the tab and address bar.
 
-AMPB records the process it launches for each exact profile. Later handoffs reuse only a
-live process recorded for that profile; otherwise AMPB launches a new isolated process.
+Subresources cannot switch transports. A mismatched image, frame, script, WebSocket, or
+background request is blocked. Tor tabs may reach clearnet destinations through Tor. I2P
+tabs are restricted to I2P destinations unless the user explicitly approves a switch to
+clearnet.
 
-The helper rejects a handoff when the supplied transport does not match the URL. It is
-tied to the broker browser process and stops when that process exits.
+## Network Policy
 
-Subresources, frames, and background requests to alternate-network hosts are blocked in
-the clearnet broker and are not converted into handoffs. Only top-level navigation can
-open another transport context.
+- Clearnet containers use direct networking.
+- Tor containers use SOCKS with proxy-side DNS and a stable first-party isolation token.
+- I2P containers use the local I2P HTTP proxy and fail closed for non-I2P destinations.
+- No transport has a direct fallback when its proxy is unavailable.
+- Speculative connections, prefetching, WebRTC, HTTP/3, and browser DNS-over-HTTPS are
+  disabled in the container prototype.
 
-## Boundaries
+The token-gated loopback helper can inspect, start, or adopt transports. It cannot open
+browser windows or choose a tab's route.
 
-The broker separates cookies, cache, history, service workers, and other profile storage
-by transport. AMPB-managed daemon state is separately stored under
-`.ampb/transports/<transport>`.
+## Security Boundary
 
-Transport isolation is not an anonymity claim. Tor browsing still requires Tor Browser
-hardening and update parity before AMPB can claim equivalent fingerprinting resistance.
-I2P and Reticulum have different threat models and must be described on their own terms.
+Firefox containers separate cookies, logins, and site data, but they do not separate every
+piece of profile state. The one-window WebExtension implementation is therefore a UX and
+routing prototype, not a claim of Tor Browser anonymity equivalence.
+
+The release-grade boundary belongs in Gecko. A native `TransportContextId` carried through
+origin attributes and channel load information must partition storage, cache, permissions,
+connections, DNS, service workers, and content processes while applying fail-closed network
+policy below extension code.
 
 ## Command
 

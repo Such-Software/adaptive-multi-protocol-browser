@@ -24,8 +24,8 @@ class PlatformCapability:
 
 
 PLATFORM_CAPABILITIES = (
-    PlatformCapability("clearnet", "desktop", "ready", "ready", "unsupported", "unsupported", "Use bundled AMPB Gecko desktop runtime with isolated profile."),
-    PlatformCapability("clearnet", "android", "ready", "ready", "unsupported", "unsupported", "Use bundled AMPB GeckoView Android runtime with isolated profile."),
+    PlatformCapability("clearnet", "desktop", "ready", "ready", "unsupported", "unsupported", "Use one bundled AMPB Gecko window with isolated transport contexts."),
+    PlatformCapability("clearnet", "android", "ready", "ready", "unsupported", "unsupported", "Use one bundled GeckoView app with isolated transport sessions."),
     PlatformCapability("clearnet", "ios", "ready", "ready", "unsupported", "unsupported", "Use bundled AMPB iOS shell with platform WebKit constraints."),
     PlatformCapability("tor", "desktop", "ready", "ready", "planned", "planned", "Adopt local Tor or prompt before managed Arti SOCKS setup."),
     PlatformCapability("tor", "android", "planned", "planned", "planned", "planned", "Use an app-owned foreground service; prefer Arti/Tor runtime integration where available."),

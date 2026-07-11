@@ -6,8 +6,8 @@ This file is generated from code. Do not edit it by hand.
 
 | Transport | Platform | Browse | Adopt | Manage | Install | Note |
 | --- | --- | --- | --- | --- | --- | --- |
-| `clearnet` | `desktop` | `ready` | `ready` | `unsupported` | `unsupported` | Use bundled AMPB Gecko desktop runtime with isolated profile. |
-| `clearnet` | `android` | `ready` | `ready` | `unsupported` | `unsupported` | Use bundled AMPB GeckoView Android runtime with isolated profile. |
+| `clearnet` | `desktop` | `ready` | `ready` | `unsupported` | `unsupported` | Use one bundled AMPB Gecko window with isolated transport contexts. |
+| `clearnet` | `android` | `ready` | `ready` | `unsupported` | `unsupported` | Use one bundled GeckoView app with isolated transport sessions. |
 | `clearnet` | `ios` | `ready` | `ready` | `unsupported` | `unsupported` | Use bundled AMPB iOS shell with platform WebKit constraints. |
 | `tor` | `desktop` | `ready` | `ready` | `planned` | `planned` | Adopt local Tor or prompt before managed Arti SOCKS setup. |
 | `tor` | `android` | `planned` | `planned` | `planned` | `planned` | Use an app-owned foreground service; prefer Arti/Tor runtime integration where available. |

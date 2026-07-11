@@ -28,9 +28,9 @@ artifacts are available for the selected checkout.
 
 The first transport target is Tor through an AMPB-owned Arti/Tor runtime. The current
 desktop vertical can launch a bundled Gecko runtime, start the isolated transport broker,
-and keep its token-gated helper tied to the broker process. Tor and I2P destinations launch
-in their own browser profiles after route validation and consent. Reticulum follows after
-the resilient-network adapter and renderer handoff are concrete.
+and keep its token-gated helper tied to the browser process. Clearnet, Tor, and I2P remain
+in one visible window as transport container tabs. Reticulum follows after the
+resilient-network adapter and inert document renderer are concrete.
 
 ## Desktop Shell
 
